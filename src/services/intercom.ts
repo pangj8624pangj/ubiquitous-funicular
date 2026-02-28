@@ -75,7 +75,10 @@ export interface IntercomTeamsResponse {
 
 import { authService } from './auth';
 
-const PROXY = '/api/intercom';
+/** Empty string in dev (Vite proxies /api → localhost:3001).
+ *  Set VITE_API_URL=https://your-api.onrender.com for production builds. */
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const PROXY = `${API_BASE}/api/intercom`;
 
 function getAuthHeader(): Record<string, string> {
   const token = authService.getToken();
@@ -144,7 +147,7 @@ export const intercomService = {
    */
   async isServerReachable(): Promise<boolean> {
     try {
-      const res = await fetch('/api/health', { signal: AbortSignal.timeout(1500) });
+      const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(1500) });
       return res.status < 500;
     } catch {
       return false;

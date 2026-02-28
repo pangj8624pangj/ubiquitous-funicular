@@ -77,7 +77,8 @@ export default function IntercomLive() {
     const token = authService.getToken();
     if (!token) return;
 
-    const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+    const apiBase = import.meta.env.VITE_API_URL ?? '';
+    const es = new EventSource(`${apiBase}/api/events?token=${encodeURIComponent(token)}`);
     sseRef.current = es;
 
     es.addEventListener('connected', () => setRealtimeActive(true));

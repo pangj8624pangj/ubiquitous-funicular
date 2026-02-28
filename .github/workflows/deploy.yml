@@ -30,7 +30,13 @@ jobs:
 
       - run: npm ci
 
+      # VITE_API_URL must be set as a GitHub repository secret.
+      # Value: the URL of your deployed Render API, e.g.:
+      #   https://pulseops-api.onrender.com
+      # Without it the frontend builds but cannot reach the API.
       - run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       # GitHub Pages serves 404.html for unknown routes — copy index.html
       # so React Router can handle all client-side paths on hard refresh.

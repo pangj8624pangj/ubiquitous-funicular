@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Zap, Database, Bell, Shield, Users, Link, Check, AlertTriangle, X, ExternalLink } from 'lucide-react';
+import { Settings as SettingsIcon, Zap, Database, Bell, Shield, Users, Link, Check, AlertTriangle, X } from 'lucide-react';
 import { intercomService } from '../services/intercom';
+import IntercomSetupWizard from '../components/IntercomSetupWizard';
 
 type SettingsTab = 'Integrations' | 'Notifications' | 'Compliance Rules' | 'Team & Roles' | 'Data & Exports' | 'API & Webhooks';
 
@@ -79,17 +80,8 @@ export default function Settings() {
   const [savedBanner, setSavedBanner] = useState(false);
 
   // Intercom-specific state
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const [serverReachable, setServerReachable] = useState<boolean | null>(null);
+  const [showIntercomSetup, setShowIntercomSetup] = useState(false);
   const [intercomMeInfo, setIntercomMeInfo] = useState<{ name: string; workspace: string } | null>(null);
-
-  // Check server reachability whenever the Integrations tab is active
-  useEffect(() => {
-    if (activeTab === 'Integrations') {
-      intercomService.isServerReachable().then(setServerReachable);
-    }
-  }, [activeTab]);
 
   // Integration state
   const [intgStatus, setIntgStatus] = useState<Record<string, string>>(() => {
@@ -155,37 +147,29 @@ export default function Settings() {
     setNotifs(prev => prev.map(n => n.label === label ? { ...n, enabled: !n.enabled } : n));
   };
 
-  const handleConnect = async (name: string) => {
+  const handleConnect = (name: string) => {
     if (name === 'Intercom') {
-      // Real Intercom connection via the proxy server
-      setIsConnecting(true);
-      setConnectError(null);
-      try {
-        await intercomService.setToken(connectForm.key);
-        const me = await intercomService.getMe();
-        setIntercomMeInfo({ name: me.name, workspace: me.app?.name ?? 'Intercom' });
-        const updated = { ...intgStatus, Intercom: 'connected' };
-        setIntgStatus(updated);
-        try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
-        setConnectModal(null);
-        setConnectForm({ key: '', secret: '' });
-        setSavedBanner(true);
-        setTimeout(() => setSavedBanner(false), 3000);
-      } catch (err) {
-        setConnectError(err instanceof Error ? err.message : 'Connection failed – check your token');
-      } finally {
-        setIsConnecting(false);
-      }
-    } else {
-      // Generic mock connection for other integrations
-      const updated = { ...intgStatus, [name]: 'connected' };
-      setIntgStatus(updated);
-      try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
-      setConnectModal(null);
-      setConnectForm({ key: '', secret: '' });
-      setSavedBanner(true);
-      setTimeout(() => setSavedBanner(false), 3000);
+      // Open the step-by-step wizard instead of the generic modal
+      setShowIntercomSetup(true);
+      return;
     }
+    // Generic mock connection for other integrations
+    const updated = { ...intgStatus, [name]: 'connected' };
+    setIntgStatus(updated);
+    try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
+    setConnectModal(null);
+    setConnectForm({ key: '', secret: '' });
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 3000);
+  };
+
+  const handleIntercomConnected = (info: { name: string; workspace: string }) => {
+    setIntercomMeInfo(info);
+    const updated = { ...intgStatus, Intercom: 'connected' };
+    setIntgStatus(updated);
+    try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 3000);
   };
 
   const handleDisconnect = (name: string) => {
@@ -299,7 +283,12 @@ export default function Settings() {
                         <button onClick={() => setConfigModal(intg.name)} className="btn-secondary text-xs h-7 px-2.5">Configure</button>
                       </div>
                     ) : (
-                      <button onClick={() => setConnectModal(intg.name)} className="btn-primary text-xs h-8 px-3">Connect</button>
+                      <button
+                        onClick={() => intg.name === 'Intercom' ? handleConnect('Intercom') : setConnectModal(intg.name)}
+                        className="btn-primary text-xs h-8 px-3"
+                      >
+                        Connect
+                      </button>
                     )}
                   </div>
                 ))}
@@ -508,125 +497,68 @@ export default function Settings() {
       </div>
 
       {/* Connect modal */}
-      {connectModal && (
+      {/* Generic connect modal (non-Intercom integrations) */}
+      {connectModal && connectModal !== 'Intercom' && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); setConnectError(null); }}
+          onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }}
         >
           <div className="card w-full max-w-md p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-white font-semibold">Connect {connectModal}</h3>
-                <p className="text-gray-500 text-xs mt-0.5">
-                  {connectModal === 'Intercom'
-                    ? 'Authenticate with your Intercom Personal Access Token'
-                    : 'Enter your API credentials to authorize PulseOps'}
-                </p>
+                <p className="text-gray-500 text-xs mt-0.5">Enter your API credentials to authorize PulseOps</p>
               </div>
               <button
-                onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); setConnectError(null); }}
+                onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }}
                 className="text-gray-500 hover:text-white"
               >
                 <X size={16} />
               </button>
             </div>
-
-            {connectModal === 'Intercom' ? (
-              /* ── Real Intercom connect form ─────────────────────────────── */
-              <div className="space-y-4">
-                {serverReachable === false && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
-                    <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-amber-300 text-xs font-medium">Proxy server not running</p>
-                      <p className="text-gray-500 text-xs mt-0.5">
-                        Start it first: <code className="text-blue-400">npm run server</code>
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-300 space-y-1">
-                  <p className="font-medium">How to get your Personal Access Token:</p>
-                  <ol className="list-decimal list-inside space-y-0.5 text-gray-400">
-                    <li>Open the <a href="https://app.intercom.com/a/apps/_/developer-hub" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline inline-flex items-center gap-0.5">Intercom Developer Hub <ExternalLink size={10} /></a></li>
-                    <li>Select your app → <strong className="text-gray-300">Basic Information</strong></li>
-                    <li>Copy the <strong className="text-gray-300">Access Token</strong></li>
-                  </ol>
-                </div>
-                <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">
-                    Personal Access Token
-                  </label>
-                  <input
-                    type="password"
-                    className="input w-full text-sm h-9 font-mono"
-                    placeholder="dG9rO…"
-                    value={connectForm.key}
-                    onChange={e => { setConnectForm(f => ({ ...f, key: e.target.value })); setConnectError(null); }}
-                    autoFocus
-                    disabled={isConnecting}
-                  />
-                </div>
-                {connectError && (
-                  <div className="flex items-start gap-2 text-red-400 text-xs">
-                    <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
-                    {connectError}
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => { void handleConnect('Intercom'); }}
-                    disabled={!connectForm.key.trim() || isConnecting || serverReachable === false}
-                    className="btn-primary text-sm h-9 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isConnecting ? 'Verifying…' : 'Test & Connect'}
-                  </button>
-                  <button
-                    onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); setConnectError(null); }}
-                    className="btn-secondary text-sm h-9"
-                  >
-                    Cancel
-                  </button>
-                </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">API Key</label>
+                <input
+                  type="text"
+                  className="input w-full text-sm h-9"
+                  placeholder="Enter API key..."
+                  value={connectForm.key}
+                  onChange={e => setConnectForm(f => ({ ...f, key: e.target.value }))}
+                  autoFocus
+                />
               </div>
-            ) : (
-              /* ── Generic connect form (other integrations) ──────────────── */
-              <div className="space-y-3">
-                <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">API Key</label>
-                  <input
-                    type="text"
-                    className="input w-full text-sm h-9"
-                    placeholder="Enter API key..."
-                    value={connectForm.key}
-                    onChange={e => setConnectForm(f => ({ ...f, key: e.target.value }))}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">API Secret</label>
-                  <input
-                    type="password"
-                    className="input w-full text-sm h-9"
-                    placeholder="Enter API secret..."
-                    value={connectForm.secret}
-                    onChange={e => setConnectForm(f => ({ ...f, secret: e.target.value }))}
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => { void handleConnect(connectModal); }}
-                    disabled={!connectForm.key.trim()}
-                    className="btn-primary text-sm h-9 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Authorize & Connect
-                  </button>
-                  <button onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }} className="btn-secondary text-sm h-9">Cancel</button>
-                </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">API Secret</label>
+                <input
+                  type="password"
+                  className="input w-full text-sm h-9"
+                  placeholder="Enter API secret..."
+                  value={connectForm.secret}
+                  onChange={e => setConnectForm(f => ({ ...f, secret: e.target.value }))}
+                />
               </div>
-            )}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => handleConnect(connectModal)}
+                  disabled={!connectForm.key.trim()}
+                  className="btn-primary text-sm h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Authorize & Connect
+                </button>
+                <button onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }} className="btn-secondary text-sm h-9">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Intercom setup wizard */}
+      {showIntercomSetup && (
+        <IntercomSetupWizard
+          onClose={() => setShowIntercomSetup(false)}
+          onConnected={handleIntercomConnected}
+        />
       )}
 
       {/* Configure modal */}

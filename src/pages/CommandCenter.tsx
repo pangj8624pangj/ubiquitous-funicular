@@ -7,6 +7,7 @@ import { Download, Filter, AlertTriangle, Users, X, Check } from 'lucide-react';
 import MetricCardComponent from '../components/UI/MetricCard';
 import StatusBadge from '../components/UI/StatusBadge';
 import IntercomLive from '../components/IntercomLive';
+import IntercomSetupWizard from '../components/IntercomSetupWizard';
 import { intercomService } from '../services/intercom';
 import { metrics, forecastData, slaMetrics, teams, agents, channelDistribution } from '../data/mockData';
 import type { RiskLevel, AgentStatus } from '../types';
@@ -55,6 +56,7 @@ export default function CommandCenter() {
   const [liveMetrics, setLiveMetrics] = useState(metrics);
   const [agentList, setAgentList] = useState(agents);
   const [intercomConnected, setIntercomConnected] = useState(false);
+  const [showIntercomSetup, setShowIntercomSetup] = useState(false);
 
   // Check once on mount whether the Intercom proxy has a live token
   useEffect(() => {
@@ -371,16 +373,44 @@ export default function CommandCenter() {
         </div>
       </div>
 
-      {/* Intercom live panel — only renders when the proxy server is connected */}
-      {intercomConnected && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-[#2a2d3e]" />
-            <span className="text-gray-600 text-xs font-medium uppercase tracking-widest px-2">Intercom</span>
-            <div className="h-px flex-1 bg-[#2a2d3e]" />
-          </div>
-          <IntercomLive />
+      {/* Intercom panel — live data if connected, setup prompt if not */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-[#2a2d3e]" />
+          <span className="text-gray-600 text-xs font-medium uppercase tracking-widest px-2">Intercom</span>
+          <div className="h-px flex-1 bg-[#2a2d3e]" />
         </div>
+
+        {intercomConnected ? (
+          <IntercomLive />
+        ) : (
+          <div className="card p-5 border border-dashed border-[#2a2d3e] flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
+              💬
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-medium text-sm">Connect Intercom</div>
+              <div className="text-gray-500 text-xs mt-0.5">
+                Pull live conversation counts, agent workload, and reply-time metrics into this dashboard
+              </div>
+            </div>
+            <button
+              onClick={() => setShowIntercomSetup(true)}
+              className="btn-primary text-xs h-8 px-3 flex-shrink-0"
+            >
+              Set up →
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Intercom setup wizard */}
+      {showIntercomSetup && (
+        <IntercomSetupWizard
+          onClose={() => setShowIntercomSetup(false)}
+          onConnected={() => setIntercomConnected(true)}
+          onDone={() => setShowIntercomSetup(false)}
+        />
       )}
 
       {/* Live agent roster */}

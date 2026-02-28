@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Activity, Calendar, ArrowLeftRight, Bell, Award, TrendingUp, Clock, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Calendar, ArrowLeftRight, Bell, Award, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { agentBadges, adherenceTimeline, shiftSwaps } from '../data/mockData';
+import type { ShiftSwapRequest } from '../types';
 
 const mySchedule = [
   { day: 'Mon Mar 3', shift: '9:00 AM – 5:00 PM', status: 'Confirmed', type: 'Regular' },
@@ -19,14 +20,37 @@ const myKPIs = [
   { label: 'SLA Contribution', value: 'Positive', change: '+12 tickets', positive: true, target: 'Positive' },
 ];
 
-const mySwaps = shiftSwaps.filter(s => s.agentId === 'a1');
+const initialMySwaps = shiftSwaps.filter(s => s.agentId === 'a1');
 
 export default function AgentPortal() {
   const [activeTab, setActiveTab] = useState<'schedule' | 'kpi' | 'swaps' | 'badges'>('schedule');
   const [swapOpen, setSwapOpen] = useState(false);
+  const [mySwaps, setMySwaps] = useState<ShiftSwapRequest[]>(initialMySwaps);
+  const [swapForm, setSwapForm] = useState({ myShift: '', swapWith: '', reason: '' });
+  const [swapSubmitted, setSwapSubmitted] = useState(false);
 
   const streakDays = 12;
   const adherenceToday = 97;
+
+  const handleSubmitSwap = () => {
+    if (!swapForm.reason.trim()) return;
+    const newSwap: ShiftSwapRequest = {
+      id: `sw-${Date.now()}`,
+      agentName: 'Sarah Chen',
+      agentId: 'a1',
+      fromShift: swapForm.myShift || 'Mon Mar 3 · 9AM–5PM',
+      toShift: swapForm.swapWith || 'Marcus Rivera · Wed 10AM–6PM',
+      date: '2026-03-09',
+      reason: swapForm.reason,
+      status: 'pending',
+      complianceOk: true,
+    };
+    setMySwaps(prev => [newSwap, ...prev]);
+    setSwapForm({ myShift: '', swapWith: '', reason: '' });
+    setSwapOpen(false);
+    setSwapSubmitted(true);
+    setTimeout(() => setSwapSubmitted(false), 4000);
+  };
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -59,7 +83,7 @@ export default function AgentPortal() {
               <div className="text-gray-500 text-xs">Adherence today</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-400">3</div>
+              <div className="text-2xl font-bold text-blue-400">{agentBadges.filter(b => b.earned).length}</div>
               <div className="text-gray-500 text-xs">Badges earned</div>
             </div>
           </div>
@@ -79,15 +103,21 @@ export default function AgentPortal() {
 
       {/* Alerts */}
       <div className="space-y-2">
+        {swapSubmitted && (
+          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 animate-fade-in">
+            <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
+            <p className="text-emerald-300 text-sm flex-1">Shift swap request submitted. Compliance check passed. Pending manager review.</p>
+          </div>
+        )}
         <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3">
           <Bell size={14} className="text-blue-400 flex-shrink-0" />
           <p className="text-blue-300 text-sm flex-1">Your shift swap request for Tue Mar 4 was <strong>approved</strong></p>
-          <button className="text-blue-400 text-xs hover:text-blue-300">View</button>
+          <button onClick={() => setActiveTab('swaps')} className="text-blue-400 text-xs hover:text-blue-300">View</button>
         </div>
         <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
           <Award size={14} className="text-emerald-400 flex-shrink-0" />
           <p className="text-emerald-300 text-sm flex-1">New badge unlocked: <strong>Perfect Week</strong> 🎯</p>
-          <button className="text-emerald-400 text-xs hover:text-emerald-300">View</button>
+          <button onClick={() => setActiveTab('badges')} className="text-emerald-400 text-xs hover:text-emerald-300">View</button>
         </div>
       </div>
 
@@ -101,7 +131,7 @@ export default function AgentPortal() {
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as any)}
+            onClick={() => setActiveTab(id as typeof activeTab)}
             className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition-colors whitespace-nowrap ${activeTab === id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
           >
             <Icon size={14} />
@@ -140,21 +170,15 @@ export default function AgentPortal() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={
-                        row.type === 'Day Off' ? 'badge-blue' :
-                        row.type === 'Swap Approved' ? 'badge-green' : 'badge-blue'
-                      }>
+                      <span className={row.type === 'Swap Approved' ? 'badge-green' : 'badge-blue'}>
                         {row.type}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={
-                        row.status === 'Off' ? 'text-gray-500 text-xs' :
-                        row.status === 'Modified' ? 'badge-yellow' : 'badge-green'
-                      }>
-                        {row.status !== 'Off' && row.status}
-                        {row.status === 'Off' && '—'}
-                      </span>
+                      {row.status === 'Off'
+                        ? <span className="text-gray-500 text-xs">—</span>
+                        : <span className={row.status === 'Modified' ? 'badge-yellow' : 'badge-green'}>{row.status}</span>
+                      }
                     </td>
                   </tr>
                 ))}
@@ -166,7 +190,7 @@ export default function AgentPortal() {
           <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-white font-semibold text-sm">Today's Adherence Timeline</h4>
-              <span className="badge-green">97% adherent</span>
+              <span className="badge-green">{adherenceToday}% adherent</span>
             </div>
             <div className="grid grid-cols-6 md:grid-cols-12 gap-1">
               {adherenceTimeline.map((entry, i) => (
@@ -175,7 +199,7 @@ export default function AgentPortal() {
                   className={`aspect-square rounded flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-105 ${
                     entry.match ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-amber-500/20 border border-amber-500/40'
                   }`}
-                  title={`${entry.time}: ${entry.actual} (sched: ${entry.scheduled})`}
+                  title={`${entry.time}: ${entry.actual}${!entry.match ? ` (scheduled: ${entry.scheduled})` : ''}`}
                 >
                   <span className="text-[9px] text-gray-500">{entry.time.split(':')[0]}</span>
                   {entry.match
@@ -228,15 +252,23 @@ export default function AgentPortal() {
                     <span className="text-gray-400 text-xs">{m.label}</span>
                     <div className="flex items-center gap-3 text-xs">
                       <span className="text-blue-400 font-medium">Me: {m.mine}%</span>
-                      <span className="text-gray-500">Team: {m.team}%</span>
+                      <span className="text-gray-500">Team avg: {m.team}%</span>
                     </div>
                   </div>
+                  {/* Track: gray bg = full bar, blue fill = my score, white line = team marker */}
                   <div className="h-2 bg-[#2a2d3e] rounded-full overflow-hidden relative">
-                    <div className="h-full bg-[#2a2d3e] rounded-full" style={{ width: `${m.team}%` }}>
-                      <div className="h-full bg-gray-600 rounded-full" />
-                    </div>
-                    <div className="absolute top-0 left-0 h-full bg-blue-600 rounded-full" style={{ width: `${m.mine}%` }} />
-                    <div className="absolute top-0 h-full w-0.5 bg-gray-400" style={{ left: `${m.team}%` }} />
+                    <div
+                      className="absolute top-0 left-0 h-full bg-blue-600 rounded-full"
+                      style={{ width: `${m.mine}%` }}
+                    />
+                    <div
+                      className="absolute top-0 h-full w-0.5 bg-gray-300 z-10"
+                      style={{ left: `${m.team}%` }}
+                      title={`Team avg: ${m.team}%`}
+                    />
+                  </div>
+                  <div className="flex items-center justify-end mt-0.5">
+                    <span className="text-gray-600 text-[10px]">▲ team avg at {m.team}%</span>
                   </div>
                 </div>
               ))}
@@ -260,32 +292,55 @@ export default function AgentPortal() {
             <div className="card p-5 border-blue-500/20 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-white font-semibold text-sm">New Shift Swap Request</h4>
-                <button onClick={() => setSwapOpen(false)} className="text-gray-500 hover:text-white">×</button>
+                <button onClick={() => setSwapOpen(false)} className="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1">My Shift</label>
-                  <select className="input w-full text-sm h-9">
-                    <option>Mon Mar 3 · 9AM–5PM</option>
-                    <option>Tue Mar 4 · 9AM–5PM</option>
-                    <option>Thu Mar 6 · 9AM–5PM</option>
+                  <select
+                    className="input w-full text-sm h-9"
+                    value={swapForm.myShift}
+                    onChange={e => setSwapForm(f => ({ ...f, myShift: e.target.value }))}
+                  >
+                    <option value="">Mon Mar 3 · 9AM–5PM</option>
+                    <option value="Tue Mar 4 · 9AM–5PM">Tue Mar 4 · 9AM–5PM</option>
+                    <option value="Thu Mar 6 · 9AM–5PM">Thu Mar 6 · 9AM–5PM</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1">Swap With</label>
-                  <select className="input w-full text-sm h-9">
-                    <option>Marcus Rivera · Wed 10AM–6PM</option>
-                    <option>Aisha Thompson · Fri 9AM–5PM</option>
-                    <option>Carlos Mendez · Thu 12PM–8PM</option>
+                  <select
+                    className="input w-full text-sm h-9"
+                    value={swapForm.swapWith}
+                    onChange={e => setSwapForm(f => ({ ...f, swapWith: e.target.value }))}
+                  >
+                    <option value="">Marcus Rivera · Wed 10AM–6PM</option>
+                    <option value="Aisha Thompson · Fri 9AM–5PM">Aisha Thompson · Fri 9AM–5PM</option>
+                    <option value="Carlos Mendez · Thu 12PM–8PM">Carlos Mendez · Thu 12PM–8PM</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Reason</label>
-                  <input type="text" placeholder="Brief reason..." className="input w-full text-sm h-9" />
+                  <label className="text-gray-400 text-xs font-medium block mb-1">
+                    Reason <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Brief reason..."
+                    className="input w-full text-sm h-9"
+                    value={swapForm.reason}
+                    onChange={e => setSwapForm(f => ({ ...f, reason: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="btn-primary text-xs h-8">Submit Request</button>
+                <button
+                  onClick={handleSubmitSwap}
+                  disabled={!swapForm.reason.trim()}
+                  className="btn-primary text-xs h-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Submit Request
+                </button>
+                <button onClick={() => setSwapOpen(false)} className="btn-secondary text-xs h-8">Cancel</button>
                 <span className="text-gray-500 text-xs">Compliance check runs automatically</span>
               </div>
             </div>
@@ -309,7 +364,7 @@ export default function AgentPortal() {
                       <td className="px-4 py-3 text-gray-300 text-sm">{swap.fromShift}</td>
                       <td className="px-4 py-3 text-gray-300 text-sm">{swap.toShift}</td>
                       <td className="px-4 py-3 text-gray-400 text-sm">{swap.date}</td>
-                      <td className="px-4 py-3 text-gray-400 text-sm">{swap.reason}</td>
+                      <td className="px-4 py-3 text-gray-400 text-sm max-w-[200px] truncate">{swap.reason}</td>
                       <td className="px-4 py-3">
                         <span className={swap.status === 'approved' ? 'badge-green' : swap.status === 'rejected' ? 'badge-red' : 'badge-yellow'}>
                           {swap.status}

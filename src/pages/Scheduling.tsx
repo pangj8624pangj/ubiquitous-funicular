@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Calendar, Plus, Check, X, AlertTriangle, Download, Filter, Clock, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Plus, Check, X, AlertTriangle, Download, Filter, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { shiftSwaps, scheduleData } from '../data/mockData';
+import type { ShiftSwapRequest } from '../types';
 
 const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 7AM–10PM
 
@@ -18,14 +19,30 @@ const statusBadge: Record<string, string> = {
 
 export default function Scheduling() {
   const [view, setView] = useState<'schedule' | 'swaps'>('schedule');
-  const [swapList, setSwapList] = useState(shiftSwaps);
+  const [swapList, setSwapList] = useState<ShiftSwapRequest[]>(shiftSwaps);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('All Status');
 
   const handleSwap = (id: string, action: 'approved' | 'rejected') => {
     setSwapList(prev => prev.map(s => s.id === id ? { ...s, status: action } : s));
   };
 
+  const handleUndo = (id: string) => {
+    setSwapList(prev => prev.map(s => s.id === id ? { ...s, status: 'pending' } : s));
+  };
+
+  const handleBulkApprove = () => {
+    setSwapList(prev =>
+      prev.map(s => (s.status === 'pending' && s.complianceOk) ? { ...s, status: 'approved' } : s)
+    );
+  };
+
   const pendingCount = swapList.filter(s => s.status === 'pending').length;
+  const compliancePendingCount = swapList.filter(s => s.status === 'pending' && s.complianceOk).length;
+
+  const filteredSwaps = swapList.filter(s =>
+    statusFilter === 'All Status' || s.status === statusFilter.toLowerCase()
+  );
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -36,7 +53,7 @@ export default function Scheduling() {
             <Calendar size={20} className="text-blue-400" />
             Schedule Manager
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5">Drag-and-drop scheduling · Compliance-locked swaps · Bulk changes</p>
+          <p className="text-gray-500 text-sm mt-0.5">Visual schedule · Compliance-locked swaps · Bulk changes</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn-secondary h-9">
@@ -125,7 +142,6 @@ export default function Scheduling() {
                 {scheduleData.map(({ day, shifts }) => (
                   <div key={day}>
                     <div className="border-b border-[#2a2d3e] hover:bg-[#1e2130] transition-colors">
-                      {/* Day header */}
                       <div className="grid" style={{ gridTemplateColumns: '120px 1fr' }}>
                         <div className="p-3 border-r border-[#2a2d3e] flex items-center">
                           <div>
@@ -140,19 +156,19 @@ export default function Scheduling() {
                               <div key={h} className="border-r border-[#2a2d3e]/40 last:border-r-0 h-full" />
                             ))}
                           </div>
-                          {/* Shift bars */}
+                          {/* Shift bars — two rows: top row (idx 0,1,2), bottom row (idx 3,4,5) */}
                           {shifts.map((shift, idx) => {
                             const startPct = ((shift.start - 7) / 16) * 100;
                             const widthPct = ((shift.end - shift.start) / 16) * 100;
-                            const topPct = (idx % 2) * 48;
+                            const topPx = idx < 3 ? 4 : 26;
                             return (
                               <div
-                                key={idx}
+                                key={`${shift.agent}-${idx}`}
                                 className={`absolute h-5 rounded border text-[10px] font-medium px-1.5 flex items-center cursor-pointer hover:brightness-110 transition-all truncate ${shiftColors[shift.team] || 'bg-gray-600/60 border-gray-500/40 text-gray-200'}`}
                                 style={{
                                   left: `${startPct}%`,
                                   width: `${widthPct}%`,
-                                  top: idx < 3 ? 4 : 26,
+                                  top: topPx,
                                 }}
                                 title={`${shift.agent} · ${shift.start}:00–${shift.end}:00 · ${shift.team}`}
                               >
@@ -177,21 +193,33 @@ export default function Scheduling() {
                 <span className="text-gray-400 text-xs">{team}</span>
               </div>
             ))}
-            <span className="text-gray-600 text-xs ml-auto">Click a shift to edit · Drag to move</span>
+            <span className="text-gray-600 text-xs ml-auto">Hover a shift to see details</span>
           </div>
         </div>
       )}
 
       {view === 'swaps' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="text-gray-400 text-sm">{swapList.length} total requests</span>
               <span className="badge-yellow">{pendingCount} pending</span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="btn-secondary text-xs h-8">Bulk Approve</button>
-              <select className="input text-xs h-8 px-2">
+              <button
+                onClick={handleBulkApprove}
+                disabled={compliancePendingCount === 0}
+                className="btn-secondary text-xs h-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                title={compliancePendingCount === 0 ? 'No compliant pending swaps' : `Approve ${compliancePendingCount} compliant swap(s)`}
+              >
+                <Check size={12} />
+                Bulk Approve ({compliancePendingCount})
+              </button>
+              <select
+                className="input text-xs h-8 px-2"
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
                 <option>All Status</option>
                 <option>Pending</option>
                 <option>Approved</option>
@@ -210,7 +238,7 @@ export default function Scheduling() {
                 </tr>
               </thead>
               <tbody>
-                {swapList.map(swap => (
+                {filteredSwaps.map(swap => (
                   <tr key={swap.id} className="table-row">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -238,7 +266,7 @@ export default function Scheduling() {
                       {swap.complianceOk ? (
                         <span className="badge-green"><Check size={10} />OK</span>
                       ) : (
-                        <span className="badge-red flex items-center gap-1">
+                        <span className="badge-red">
                           <AlertTriangle size={10} />
                           Violation
                         </span>
@@ -254,7 +282,9 @@ export default function Scheduling() {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => handleSwap(swap.id, 'approved')}
-                            className="h-7 px-2.5 text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 rounded-lg transition-colors flex items-center gap-1"
+                            disabled={!swap.complianceOk}
+                            className="h-7 px-2.5 text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={!swap.complianceOk ? 'Compliance violation – cannot approve' : 'Approve swap'}
                           >
                             <Check size={11} />
                             Approve
@@ -268,11 +298,23 @@ export default function Scheduling() {
                           </button>
                         </div>
                       ) : (
-                        <button className="btn-secondary text-xs h-7 px-2.5">Undo</button>
+                        <button
+                          onClick={() => handleUndo(swap.id)}
+                          className="btn-secondary text-xs h-7 px-2.5"
+                        >
+                          Undo
+                        </button>
                       )}
                     </td>
                   </tr>
                 ))}
+                {filteredSwaps.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center py-8 text-gray-500 text-sm">
+                      No swap requests match the current filter
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

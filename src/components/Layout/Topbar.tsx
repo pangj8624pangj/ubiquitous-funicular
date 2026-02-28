@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Bell, Search, RefreshCw, ChevronDown } from 'lucide-react';
-import { notifications } from '../../data/mockData';
+import { notifications as initialNotifications } from '../../data/mockData';
+import type { Notification } from '../../types';
 
 interface TopbarProps {
   title: string;
@@ -9,7 +10,17 @@ interface TopbarProps {
 
 export default function Topbar({ title, subtitle }: TopbarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const [notifs, setNotifs] = useState<Notification[]>(initialNotifications);
+
+  const unreadCount = notifs.filter(n => !n.read).length;
+
+  const markAllRead = () => {
+    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const markRead = (id: string) => {
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
 
   const typeColors: Record<string, string> = {
     warning: 'text-amber-400',
@@ -45,8 +56,8 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
 
         {/* Refresh status */}
         <div className="flex items-center gap-1.5 bg-[#22253a] rounded-lg px-3 py-1.5 border border-[#2a2d3e] hidden sm:flex">
-          <RefreshCw size={12} className="text-gray-400 animate-spin" style={{ animationDuration: '3s' }} />
-          <span className="text-gray-400 text-xs">Refreshing...</span>
+          <RefreshCw size={12} className="text-gray-400" style={{ animation: 'spin 3s linear infinite' }} />
+          <span className="text-gray-400 text-xs">Live</span>
         </div>
 
         {/* Notifications */}
@@ -67,11 +78,18 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
             <div className="absolute right-0 top-10 w-96 card shadow-2xl z-50 overflow-hidden animate-fade-in">
               <div className="flex items-center justify-between p-4 border-b border-[#2a2d3e]">
                 <span className="text-white font-semibold text-sm">Notifications</span>
-                <span className="badge-red">{unreadCount} new</span>
+                {unreadCount > 0
+                  ? <span className="badge-red">{unreadCount} new</span>
+                  : <span className="badge-green">All read</span>
+                }
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {notifications.map(n => (
-                  <div key={n.id} className={`flex gap-3 px-4 py-3 border-b border-[#2a2d3e] ${!n.read ? 'bg-[#22253a]' : ''}`}>
+                {notifs.map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => markRead(n.id)}
+                    className={`flex gap-3 px-4 py-3 border-b border-[#2a2d3e] w-full text-left hover:bg-[#1e2130] transition-colors ${!n.read ? 'bg-[#22253a]' : ''}`}
+                  >
                     <div className={`w-7 h-7 rounded-full ${typeBg[n.type]} flex items-center justify-center flex-shrink-0`}>
                       <span className={`text-[10px] font-bold ${typeColors[n.type]}`}>
                         {n.type === 'warning' ? '!' : n.type === 'error' ? '✕' : n.type === 'success' ? '✓' : 'i'}
@@ -82,11 +100,18 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
                       <p className="text-gray-600 text-[10px] mt-0.5">{n.time}</p>
                     </div>
                     {!n.read && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />}
-                  </div>
+                  </button>
                 ))}
               </div>
-              <div className="p-3 border-t border-[#2a2d3e]">
-                <button className="text-blue-400 text-xs hover:text-blue-300 transition-colors">Mark all as read</button>
+              <div className="p-3 border-t border-[#2a2d3e] flex items-center justify-between">
+                <button
+                  onClick={markAllRead}
+                  disabled={unreadCount === 0}
+                  className="text-blue-400 text-xs hover:text-blue-300 transition-colors disabled:text-gray-600 disabled:cursor-default"
+                >
+                  Mark all as read
+                </button>
+                <span className="text-gray-600 text-xs">{notifs.length} total</span>
               </div>
             </div>
           )}

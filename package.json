@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node server.cjs",
-    "dev:full": "concurrently -k -n \"proxy,vite\" -c \"cyan,blue\" \"node server.cjs\" \"vite\"",
+    "api": "cd api && npm run dev",
+    "dev:full": "concurrently -k -n \"api,vite\" -c \"cyan,blue\" \"npm run api\" \"vite\"",
     "build": "tsc -b && vite build",
+    "build:api": "cd api && npm run build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

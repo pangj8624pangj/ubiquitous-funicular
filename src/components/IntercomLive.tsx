@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageCircle, Users, Clock, RefreshCw, AlertTriangle, ExternalLink, Zap } from 'lucide-react';
 import {
   intercomService,
   type IntercomAdmin,
   type IntercomConversation,
 } from '../services/intercom';
+import { authService } from '../services/auth';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -37,9 +38,11 @@ interface LiveData {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function IntercomLive() {
-  const [data, setData] = useState<LiveData | null>(null);
+  const [data, setData]       = useState<LiveData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [realtimeActive, setRealtimeActive] = useState(false);
+  const sseRef = useRef<EventSource | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -51,13 +54,12 @@ export default function IntercomLive() {
       ]);
 
       setData({
-        workspaceName: meRes.app?.name ?? 'Intercom Workspace',
-        adminName: meRes.name,
-        admins: adminsRes.admins ?? [],
-        conversations: convRes.conversations ?? [],
-        totalConversations:
-          convRes.pages?.total_count ?? (convRes.conversations?.length ?? 0),
-        fetchedAt: new Date(),
+        workspaceName:      meRes.app?.name ?? 'Intercom Workspace',
+        adminName:          meRes.name,
+        admins:             adminsRes.admins ?? [],
+        conversations:      convRes.conversations ?? [],
+        totalConversations: convRes.pages?.total_count ?? (convRes.conversations?.length ?? 0),
+        fetchedAt:          new Date(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load Intercom data');
@@ -66,9 +68,40 @@ export default function IntercomLive() {
     }
   }, []);
 
+  // ── SSE subscription ────────────────────────────────────────────────────────
+  // Connect to GET /api/events and trigger an immediate re-fetch whenever an
+  // intercom:event arrives (pushed by the webhook handler).
+  // Falls back to 30-second polling when SSE is unavailable.
+
+  useEffect(() => {
+    const token = authService.getToken();
+    if (!token) return;
+
+    const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+    sseRef.current = es;
+
+    es.addEventListener('connected', () => setRealtimeActive(true));
+
+    es.addEventListener('intercom:event', () => {
+      // Webhook fired → clear the 30s poll timer and fetch immediately
+      void fetchData();
+    });
+
+    es.onerror = () => {
+      // SSE connection dropped; polling keeps the data fresh
+      setRealtimeActive(false);
+    };
+
+    return () => {
+      es.close();
+      sseRef.current = null;
+      setRealtimeActive(false);
+    };
+  }, [fetchData]);
+
+  // ── Polling fallback (30 s) ─────────────────────────────────────────────────
   useEffect(() => {
     fetchData();
-    // Refresh every 30 s for live data
     const interval = setInterval(fetchData, 30_000);
     return () => clearInterval(interval);
   }, [fetchData]);
@@ -105,19 +138,17 @@ export default function IntercomLive() {
 
   // ── Derived metrics ─────────────────────────────────────────────────────────
 
-  const openConvs = data.conversations.filter(c => c.state === 'open');
+  const openConvs  = data.conversations.filter(c => c.state === 'open');
   const unassigned = openConvs.filter(c => !c.admin_assignee_id);
-  const snoozed = data.conversations.filter(c => c.state === 'snoozed');
+  const snoozed    = data.conversations.filter(c => c.state === 'snoozed');
 
   const replyTimes = data.conversations
     .map(c => c.statistics?.time_to_admin_reply_in_seconds)
     .filter((t): t is number => typeof t === 'number' && t > 0);
-  const avgReplyTime =
-    replyTimes.length
-      ? Math.round(replyTimes.reduce((a, b) => a + b, 0) / replyTimes.length)
-      : null;
+  const avgReplyTime = replyTimes.length
+    ? Math.round(replyTimes.reduce((a, b) => a + b, 0) / replyTimes.length)
+    : null;
 
-  // Per-admin open conversation counts
   const workloadMap: Record<string, number> = {};
   openConvs.forEach(c => {
     if (c.admin_assignee_id) {
@@ -147,10 +178,17 @@ export default function IntercomLive() {
                 <span className="live-dot" />
                 Live
               </span>
+              {realtimeActive && (
+                <span className="badge-blue text-[10px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block mr-1" />
+                  Real-time
+                </span>
+              )}
             </h3>
             <p className="text-gray-500 text-xs">
               Connected as {data.adminName} · synced{' '}
               {relativeTime(Math.floor(data.fetchedAt.getTime() / 1000))}
+              {realtimeActive ? ' · webhook-driven' : ' · polling 30s'}
             </p>
           </div>
         </div>
@@ -174,34 +212,10 @@ export default function IntercomLive() {
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          {
-            label: 'Open Conversations',
-            value: openConvs.length,
-            Icon: MessageCircle,
-            color: 'text-blue-400',
-            bg: 'bg-blue-500/10',
-          },
-          {
-            label: 'Unassigned',
-            value: unassigned.length,
-            Icon: Users,
-            color: unassigned.length > 5 ? 'text-red-400' : 'text-amber-400',
-            bg: unassigned.length > 5 ? 'bg-red-500/10' : 'bg-amber-500/10',
-          },
-          {
-            label: 'Snoozed',
-            value: snoozed.length,
-            Icon: Clock,
-            color: 'text-purple-400',
-            bg: 'bg-purple-500/10',
-          },
-          {
-            label: 'Avg First Reply',
-            value: fmtSeconds(avgReplyTime),
-            Icon: Zap,
-            color: 'text-emerald-400',
-            bg: 'bg-emerald-500/10',
-          },
+          { label: 'Open Conversations', value: openConvs.length,        Icon: MessageCircle, color: 'text-blue-400',    bg: 'bg-blue-500/10' },
+          { label: 'Unassigned',         value: unassigned.length,       Icon: Users,         color: unassigned.length > 5 ? 'text-red-400' : 'text-amber-400', bg: unassigned.length > 5 ? 'bg-red-500/10' : 'bg-amber-500/10' },
+          { label: 'Snoozed',            value: snoozed.length,          Icon: Clock,         color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { label: 'Avg First Reply',    value: fmtSeconds(avgReplyTime), Icon: Zap,           color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
         ].map(({ label, value, Icon, color, bg }) => (
           <div key={label} className="metric-card border border-[#2a2d3e]">
             <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-2`}>
@@ -227,59 +241,31 @@ export default function IntercomLive() {
           ) : (
             <div className="divide-y divide-[#2a2d3e]">
               {recentConvs.map(conv => {
-                const contact =
-                  conv.contacts?.contacts?.[0];
-                const contactLabel =
-                  contact?.name ?? contact?.email ?? `#${conv.id}`;
-                const assignedAdmin = data.admins.find(
-                  a => a.id === conv.admin_assignee_id,
-                );
+                const contact = conv.contacts?.contacts?.[0];
+                const contactLabel = contact?.name ?? contact?.email ?? `#${conv.id}`;
+                const assignedAdmin = data.admins.find(a => a.id === conv.admin_assignee_id);
                 return (
-                  <div
-                    key={conv.id}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#1e2130] transition-colors"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${
-                        conv.state === 'open'
-                          ? 'bg-blue-500'
-                          : conv.state === 'snoozed'
-                          ? 'bg-purple-500'
-                          : 'bg-gray-500'
-                      }`}
-                    />
+                  <div key={conv.id} className="flex items-start gap-3 px-4 py-3 hover:bg-[#1e2130] transition-colors">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${
+                      conv.state === 'open' ? 'bg-blue-500' : conv.state === 'snoozed' ? 'bg-purple-500' : 'bg-gray-500'
+                    }`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-200 text-xs font-medium truncate">
-                          {contactLabel}
-                        </span>
-                        <span className="text-gray-600 text-[10px] flex-shrink-0">
-                          {relativeTime(conv.updated_at)}
-                        </span>
+                        <span className="text-gray-200 text-xs font-medium truncate">{contactLabel}</span>
+                        <span className="text-gray-600 text-[10px] flex-shrink-0">{relativeTime(conv.updated_at)}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span
-                          className={`text-[10px] font-medium capitalize ${
-                            conv.state === 'open'
-                              ? 'text-blue-400'
-                              : conv.state === 'snoozed'
-                              ? 'text-purple-400'
-                              : 'text-gray-500'
-                          }`}
-                        >
+                        <span className={`text-[10px] font-medium capitalize ${
+                          conv.state === 'open' ? 'text-blue-400' : conv.state === 'snoozed' ? 'text-purple-400' : 'text-gray-500'
+                        }`}>
                           {conv.state}
                         </span>
-                        {assignedAdmin ? (
-                          <span className="text-gray-600 text-[10px]">
-                            → {assignedAdmin.name}
-                          </span>
-                        ) : (
-                          <span className="text-amber-500 text-[10px]">unassigned</span>
-                        )}
+                        {assignedAdmin
+                          ? <span className="text-gray-600 text-[10px]">→ {assignedAdmin.name}</span>
+                          : <span className="text-amber-500 text-[10px]">unassigned</span>
+                        }
                         {conv.source?.delivered_as && (
-                          <span className="text-gray-600 text-[10px]">
-                            · {conv.source.delivered_as}
-                          </span>
+                          <span className="text-gray-600 text-[10px]">· {conv.source.delivered_as}</span>
                         )}
                       </div>
                     </div>
@@ -305,33 +291,20 @@ export default function IntercomLive() {
               {adminsWithLoad.map(admin => (
                 <div key={admin.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="w-7 h-7 bg-blue-600/20 border border-blue-500/20 rounded-full flex items-center justify-center text-[10px] font-bold text-blue-400 flex-shrink-0">
-                    {admin.name
-                      .split(' ')
-                      .map(n => n[0])
-                      .join('')
-                      .slice(0, 2)}
+                    {admin.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-gray-200 text-xs font-medium truncate">
-                      {admin.name}
-                    </div>
+                    <div className="text-gray-200 text-xs font-medium truncate">{admin.name}</div>
                     <div className="text-gray-600 text-[10px] truncate">{admin.email}</div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {admin.away_mode_enabled ? (
-                      <span className="badge-yellow">Away</span>
-                    ) : (
-                      <span className="badge-green">Online</span>
-                    )}
-                    <span
-                      className={`text-xs font-semibold tabular-nums ${
-                        admin.openCount > 10
-                          ? 'text-red-400'
-                          : admin.openCount > 5
-                          ? 'text-amber-400'
-                          : 'text-emerald-400'
-                      }`}
-                    >
+                    {admin.away_mode_enabled
+                      ? <span className="badge-yellow">Away</span>
+                      : <span className="badge-green">Online</span>
+                    }
+                    <span className={`text-xs font-semibold tabular-nums ${
+                      admin.openCount > 10 ? 'text-red-400' : admin.openCount > 5 ? 'text-amber-400' : 'text-emerald-400'
+                    }`}>
                       {admin.openCount} open
                     </span>
                   </div>

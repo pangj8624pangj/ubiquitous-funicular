@@ -1,0 +1,45 @@
+# docker-compose.yml
+#
+# Production dependencies: Postgres + Redis.
+# Run: docker compose up -d
+#
+# Update api/src/db.ts to use the Postgres adapter (e.g. pg or Prisma)
+# and api/src/services/cache.ts to use ioredis when these are available.
+
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       pulseops
+      POSTGRES_USER:     pulseops
+      POSTGRES_PASSWORD: pulseops_dev_password   # change in production
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

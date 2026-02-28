@@ -1,7 +1,9 @@
 import { lazy, Suspense, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Layout/Sidebar';
 import Topbar from './components/Layout/Topbar';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const CommandCenter = lazy(() => import('./pages/CommandCenter'));
 const Forecasting    = lazy(() => import('./pages/Forecasting'));
@@ -21,8 +23,14 @@ const routes = [
   { path: '/settings',     component: Settings,      title: 'Settings',            subtitle: 'Integrations · Compliance · Roles · API' },
 ];
 
-export default function App() {
+// Inner component so it can consume the auth context
+function AppShell() {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <BrowserRouter>
@@ -54,9 +62,19 @@ export default function App() {
                 }
               />
             ))}
+            {/* Redirect any unknown path to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </div>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   );
 }

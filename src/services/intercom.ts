@@ -58,12 +58,7 @@ export interface IntercomConversation {
 export interface IntercomConversationsResponse {
   type: string;
   conversations: IntercomConversation[];
-  pages: {
-    type: string;
-    page: number;
-    per_page: number;
-    total_count: number;
-  };
+  pages: { type: string; page: number; per_page: number; total_count: number };
 }
 
 export interface IntercomAdminsResponse {
@@ -78,7 +73,14 @@ export interface IntercomTeamsResponse {
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
 
+import { authService } from './auth';
+
 const PROXY = '/api/intercom';
+
+function getAuthHeader(): Record<string, string> {
+  const token = authService.getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function proxyGet<T>(
   endpoint: string,
@@ -87,11 +89,11 @@ async function proxyGet<T>(
   const qs = Object.keys(params).length
     ? '?' + new URLSearchParams(params).toString()
     : '';
-  const res = await fetch(`${PROXY}/proxy/${endpoint}${qs}`);
+  const res = await fetch(`${PROXY}/proxy/${endpoint}${qs}`, {
+    headers: getAuthHeader(),
+  });
 
-  if (res.status === 401) {
-    throw new Error('Not authenticated – connect Intercom in Settings first');
-  }
+  if (res.status === 401) throw new Error('Not authenticated – sign in and connect Intercom in Settings');
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(err.error ?? `Intercom API error ${res.status}`);
@@ -102,21 +104,31 @@ async function proxyGet<T>(
 // ── Public service ────────────────────────────────────────────────────────────
 
 export const intercomService = {
-  /** Store a Personal Access Token on the proxy server. */
+  /**
+   * Store a Personal Access Token via the API backend.
+   * The backend verifies it against Intercom before persisting.
+   */
   async setToken(token: string): Promise<void> {
     const res = await fetch(`${PROXY}/auth`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: token }),
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ token }),
     });
-    if (!res.ok) throw new Error('Failed to store token on proxy server');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(err.error ?? 'Failed to verify token');
+    }
   },
 
-  /** Returns true if the proxy server is running AND has a stored token. */
+  /**
+   * Returns true when the current user has a verified Intercom token stored.
+   * Returns false if the API is unreachable or no token is stored.
+   */
   async getStatus(): Promise<boolean> {
     try {
       const res = await fetch(`${PROXY}/status`, {
-        signal: AbortSignal.timeout(1500),
+        headers: getAuthHeader(),
+        signal: AbortSignal.timeout(2000),
       });
       if (!res.ok) return false;
       const d = await res.json() as { connected: boolean };
@@ -126,33 +138,34 @@ export const intercomService = {
     }
   },
 
-  /** Returns true if the proxy server process is reachable at all. */
+  /**
+   * Returns true when the API server is reachable at all.
+   * Uses the public /api/health endpoint — no auth required.
+   */
   async isServerReachable(): Promise<boolean> {
     try {
-      const res = await fetch(`${PROXY}/status`, {
-        signal: AbortSignal.timeout(1500),
-      });
+      const res = await fetch('/api/health', { signal: AbortSignal.timeout(1500) });
       return res.status < 500;
     } catch {
       return false;
     }
   },
 
-  /** Clear the stored token. */
+  /** Disconnect Intercom for the current user. */
   async disconnect(): Promise<void> {
-    await fetch(`${PROXY}/auth`, { method: 'DELETE' });
+    await fetch(`${PROXY}/disconnect`, {
+      method: 'DELETE',
+      headers: getAuthHeader(),
+    });
   },
 
   // ── Data endpoints ──────────────────────────────────────────────────────────
 
-  getMe: () =>
-    proxyGet<IntercomMe>('me'),
+  getMe: () => proxyGet<IntercomMe>('me'),
 
-  getAdmins: () =>
-    proxyGet<IntercomAdminsResponse>('admins'),
+  getAdmins: () => proxyGet<IntercomAdminsResponse>('admins'),
 
-  getTeams: () =>
-    proxyGet<IntercomTeamsResponse>('admins/teams'),
+  getTeams: () => proxyGet<IntercomTeamsResponse>('admins/teams'),
 
   getConversations: (params: Record<string, string> = {}) =>
     proxyGet<IntercomConversationsResponse>('conversations', {

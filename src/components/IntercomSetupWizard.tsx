@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, Check, Copy, ExternalLink, RefreshCw, Terminal, Key, Zap, ArrowRight } from 'lucide-react';
+import { X, Check, Copy, ExternalLink, RefreshCw, Terminal, Key, Zap, ArrowRight, Shield } from 'lucide-react';
 import { intercomService } from '../services/intercom';
+
+/** Set VITE_INTERCOM_CLIENT_ID in .env to unlock the OAuth flow. */
+const OAUTH_AVAILABLE = Boolean(import.meta.env.VITE_INTERCOM_CLIENT_ID);
 
 interface Props {
   onClose: () => void;
@@ -9,17 +12,18 @@ interface Props {
   onDone?: () => void;
 }
 
-type Step = 'server' | 'token' | 'connect' | 'done';
+type Step = 'method' | 'server' | 'token' | 'connect' | 'done';
 
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'server', label: 'Start Server' },
-  { id: 'token', label: 'Get Token' },
+const PAT_STEPS: { id: Step; label: string }[] = [
+  { id: 'server',  label: 'Start Server' },
+  { id: 'token',   label: 'Get Token' },
   { id: 'connect', label: 'Connect' },
-  { id: 'done', label: 'Done' },
+  { id: 'done',    label: 'Done' },
 ];
 
 export default function IntercomSetupWizard({ onClose, onConnected, onDone }: Props) {
-  const [step, setStep] = useState<Step>('server');
+  // If OAuth is available, show a method picker first; otherwise go straight to PAT flow
+  const [step, setStep] = useState<Step>(OAUTH_AVAILABLE ? 'method' : 'server');
   const [serverReachable, setServerReachable] = useState(false);
   const [copied, setCopied] = useState(false);
   const [token, setToken] = useState('');
@@ -69,6 +73,7 @@ export default function IntercomSetupWizard({ onClose, onConnected, onDone }: Pr
     }
   };
 
+  const STEPS = PAT_STEPS;
   const stepIndex = STEPS.findIndex(s => s.id === step);
 
   return (
@@ -92,8 +97,8 @@ export default function IntercomSetupWizard({ onClose, onConnected, onDone }: Pr
           </button>
         </div>
 
-        {/* Step progress */}
-        <div className="flex items-center px-6 pt-5">
+        {/* Step progress — hidden on method picker */}
+        <div className={`flex items-center px-6 pt-5 ${step === 'method' ? 'hidden' : ''}`}>
           {STEPS.map((s, i) => (
             <div key={s.id} className="flex items-center flex-1 last:flex-none">
               <div className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 border transition-colors ${
@@ -119,6 +124,50 @@ export default function IntercomSetupWizard({ onClose, onConnected, onDone }: Pr
 
         {/* Step content */}
         <div className="p-6 pt-5">
+
+          {/* ── Method picker (OAuth vs PAT) — only shown when OAuth is configured ── */}
+          {step === 'method' && (
+            <div className="space-y-4">
+              <p className="text-gray-400 text-sm">Choose how to authenticate with Intercom:</p>
+              <div className="space-y-3">
+                {/* OAuth */}
+                <button
+                  onClick={() => window.location.assign('/api/intercom/oauth/start')}
+                  className="w-full flex items-start gap-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl hover:border-blue-500/40 transition-colors text-left"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Shield size={16} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-medium flex items-center gap-2">
+                      OAuth (Recommended)
+                      <span className="badge-green text-[10px]">Secure</span>
+                    </div>
+                    <div className="text-gray-500 text-xs mt-0.5">
+                      Authorize via Intercom's consent screen — no token copy-paste required
+                    </div>
+                  </div>
+                </button>
+
+                {/* PAT */}
+                <button
+                  onClick={() => setStep('server')}
+                  className="w-full flex items-start gap-4 p-4 bg-[#22253a] border border-[#2a2d3e] rounded-xl hover:border-[#3a3d50] transition-colors text-left"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[#2a2d3e] flex items-center justify-center flex-shrink-0">
+                    <Key size={16} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-medium">Personal Access Token</div>
+                    <div className="text-gray-500 text-xs mt-0.5">
+                      Paste a token from the Intercom Developer Hub
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <button onClick={onClose} className="btn-secondary text-sm h-9 w-full justify-center">Cancel</button>
+            </div>
+          )}
 
           {/* ── Step 1: Start the proxy server ─────────────────────────────── */}
           {step === 'server' && (

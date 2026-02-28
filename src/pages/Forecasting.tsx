@@ -3,7 +3,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { Brain, Plus, Download, RefreshCw, ChevronRight, AlertTriangle, TrendingUp, Sliders, Save } from 'lucide-react';
+import { Brain, Download, RefreshCw, Sliders, Save } from 'lucide-react';
 import { forecastData, weeklyForecast } from '../data/mockData';
 
 const scenarios = [
@@ -28,12 +28,18 @@ const features = [
   { name: 'Weather events', importance: 21 },
 ];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-[#0f1117] border border-[#2a2d3e] rounded-lg p-3 shadow-xl text-xs">
         <p className="text-gray-400 mb-2 font-medium">{label}</p>
-        {payload.map((p: any) => (
+        {payload.map((p) => (
           <div key={p.name} className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
             <span className="text-gray-400">{p.name}:</span>
@@ -52,6 +58,7 @@ export default function Forecasting() {
   const [granularity, setGranularity] = useState('30m');
   const [channel, setChannel] = useState('All Channels');
   const [showWhatIf, setShowWhatIf] = useState(false);
+  const [volumeImpact, setVolumeImpact] = useState(30);
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -152,8 +159,15 @@ export default function Forecasting() {
             <div>
               <label className="text-gray-400 text-xs font-medium block mb-1.5">Volume Impact</label>
               <div className="flex items-center gap-2">
-                <input type="range" min="-50" max="100" defaultValue="30" className="flex-1" />
-                <span className="text-blue-400 font-semibold text-sm w-12">+30%</span>
+                <input
+                  type="range"
+                  min={-50}
+                  max={100}
+                  value={volumeImpact}
+                  onChange={e => setVolumeImpact(Number(e.target.value))}
+                  className="flex-1"
+                />
+                <span className="text-blue-400 font-semibold text-sm w-12">{volumeImpact > 0 ? '+' : ''}{volumeImpact}%</span>
               </div>
             </div>
             <div>

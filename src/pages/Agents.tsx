@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { Users, Search, Filter, AlertTriangle, TrendingUp, CheckCircle, Clock, BarChart2 } from 'lucide-react';
+import { Users, Search, Filter, AlertTriangle, TrendingUp, CheckCircle, BarChart2, X } from 'lucide-react';
 import StatusBadge from '../components/UI/StatusBadge';
 import { agents, adherenceTimeline } from '../data/mockData';
-import type { Agent } from '../types';
-
-const riskColor: Record<string, string> = {
-  low: 'text-emerald-400',
-  medium: 'text-amber-400',
-  high: 'text-red-400',
-};
+import type { Agent, AgentStatus } from '../types';
 
 export default function Agents() {
   const [search, setSearch] = useState('');
   const [teamFilter, setTeamFilter] = useState('All Teams');
   const [selected, setSelected] = useState<Agent | null>(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideStatus, setOverrideStatus] = useState<AgentStatus>('available');
+  const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
+
+  const handleOverrideApply = () => {
+    setOverrideOpen(false);
+    setOverrideSuccess(`Status set to "${overrideStatus}" for ${selected?.name ?? 'agent'}`);
+    setTimeout(() => setOverrideSuccess(null), 3000);
+  };
 
   const teams = ['All Teams', ...Array.from(new Set(agents.map(a => a.team)))];
   const filtered = agents.filter(a =>
@@ -224,9 +227,22 @@ export default function Agents() {
                   </div>
                 </div>
 
+                {overrideSuccess && (
+                  <div className="mb-3 px-3 py-2 bg-emerald-500/15 border border-emerald-500/20 rounded-lg text-emerald-400 text-xs">
+                    {overrideSuccess}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <button className="btn-secondary text-xs h-8 flex-1">Override Status</button>
-                  <button className="btn-primary text-xs h-8 flex-1">View Profile</button>
+                  <button onClick={() => setOverrideOpen(true)} className="btn-secondary text-xs h-8 flex-1">Override Status</button>
+                  <button
+                    onClick={() => {
+                      setOverrideSuccess(`Viewing profile for ${selected.name}`);
+                      setTimeout(() => setOverrideSuccess(null), 2000);
+                    }}
+                    className="btn-primary text-xs h-8 flex-1"
+                  >
+                    View Profile
+                  </button>
                 </div>
               </div>
 
@@ -259,6 +275,40 @@ export default function Agents() {
           )}
         </div>
       </div>
+
+      {/* Override modal */}
+      {overrideOpen && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#1a1d27] border border-[#2a2d3e] rounded-2xl p-6 w-96 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold">Override Status — {selected.name}</h3>
+              <button onClick={() => setOverrideOpen(false)} className="text-gray-500 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mb-4">Select the new status to apply manually</p>
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              {(['available', 'busy', 'break', 'training', 'meeting', 'offline'] as AgentStatus[]).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setOverrideStatus(s)}
+                  className={`py-2 px-3 rounded-lg border text-xs font-medium capitalize transition-all ${
+                    overrideStatus === s
+                      ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                      : 'border-[#2a2d3e] text-gray-400 hover:border-[#3a3d50] hover:text-gray-200'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleOverrideApply} className="btn-primary text-xs h-8 flex-1">Apply Override</button>
+              <button onClick={() => setOverrideOpen(false)} className="btn-secondary text-xs h-8 flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

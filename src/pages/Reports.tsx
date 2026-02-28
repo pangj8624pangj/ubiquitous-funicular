@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line
+  ResponsiveContainer, LineChart, Line, AreaChart, Area
 } from 'recharts';
 import { BarChart3, Plus, Play, Download, Clock, RefreshCw, Save, X, GripVertical } from 'lucide-react';
 import { reportTemplates, weeklyForecast, slaMetrics } from '../data/mockData';
@@ -31,12 +31,18 @@ const trendData = weeklyForecast.map(w => ({
   Volume: w.volume / 20,
 }));
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-[#0f1117] border border-[#2a2d3e] rounded-lg p-3 shadow-xl text-xs">
         <p className="text-gray-400 mb-2 font-medium">{label}</p>
-        {payload.map((p: any) => (
+        {payload.map((p) => (
           <div key={p.name} className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
             <span className="text-gray-400">{p.name}:</span>
@@ -63,6 +69,12 @@ export default function Reports() {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['SLA %', 'Volume']);
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>(['Channel', 'Day']);
   const [reportType, setReportType] = useState('Bar Chart');
+  const [savedBanner, setSavedBanner] = useState<string | null>(null);
+
+  const showSaved = (msg: string) => {
+    setSavedBanner(msg);
+    setTimeout(() => setSavedBanner(null), 3000);
+  };
 
   const toggleMetric = (m: string) => {
     setSelectedMetrics(prev =>
@@ -98,6 +110,12 @@ export default function Reports() {
           </button>
         </div>
       </div>
+
+      {savedBanner && (
+        <div className="px-4 py-2.5 bg-emerald-500/15 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm animate-fade-in">
+          {savedBanner}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-[#22253a] border border-[#2a2d3e] rounded-xl p-1 w-fit">
@@ -148,11 +166,11 @@ export default function Reports() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="btn-primary text-xs h-7 flex-1">
+                  <button onClick={() => showSaved(`Running "${report.name}"…`)} className="btn-primary text-xs h-7 flex-1">
                     <Play size={11} />
                     Run Now
                   </button>
-                  <button className="btn-secondary text-xs h-7 flex-1">
+                  <button onClick={() => showSaved(`Exporting "${report.name}"…`)} className="btn-secondary text-xs h-7 flex-1">
                     <Download size={11} />
                     Export
                   </button>
@@ -300,11 +318,11 @@ export default function Reports() {
                 <option>Snowflake push</option>
               </select>
               <div className="flex gap-2">
-                <button className="btn-primary text-xs h-8 flex-1">
+                <button onClick={() => showSaved('Report saved successfully')} className="btn-primary text-xs h-8 flex-1">
                   <Save size={11} />
                   Save
                 </button>
-                <button className="btn-secondary text-xs h-8 flex-1">
+                <button onClick={() => showSaved('Running report…')} className="btn-secondary text-xs h-8 flex-1">
                   <Play size={11} />
                   Run Now
                 </button>
@@ -354,7 +372,11 @@ export default function Reports() {
                   </button>
                 </div>
               </div>
-              {reportType === 'Line Chart' ? (
+              {selectedMetrics.length === 0 ? (
+                <div className="flex items-center justify-center h-[280px] text-gray-500 text-sm">
+                  Select at least one metric to preview the chart
+                </div>
+              ) : reportType === 'Line Chart' ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={trendData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3e" />
@@ -366,6 +388,51 @@ export default function Reports() {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
+              ) : reportType === 'Area Chart' ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={trendData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      {selectedMetrics.slice(0, 3).map((m, i) => (
+                        <linearGradient key={m} id={`areaGrad${i}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={(['#3d6bff', '#10b981', '#f59e0b'] as const)[i]} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={(['#3d6bff', '#10b981', '#f59e0b'] as const)[i]} stopOpacity={0} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2d3e" />
+                    <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    {selectedMetrics.slice(0, 3).map((m, i) => (
+                      <Area key={m} type="monotone" dataKey={m} stroke={(['#3d6bff', '#10b981', '#f59e0b'] as const)[i]} strokeWidth={2} fill={`url(#areaGrad${i})`} dot={false} />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : reportType === 'Table' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[#2a2d3e]">
+                        <th className="px-4 py-3 text-left text-gray-500 text-xs font-medium uppercase tracking-wider">Channel</th>
+                        {selectedMetrics.map(m => (
+                          <th key={m} className="px-4 py-3 text-right text-gray-500 text-xs font-medium uppercase tracking-wider">{m}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slaMetrics.map(s => (
+                        <tr key={s.channel} className="table-row">
+                          <td className="px-4 py-3 text-gray-300">{s.channel}</td>
+                          {selectedMetrics.map(m => (
+                            <td key={m} className="px-4 py-3 text-right text-white font-medium">
+                              {m === 'SLA %' ? `${s.actual}%` : m === 'Volume' ? s.volume.toLocaleString() : m === 'Target' ? `${s.target}%` : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={sampleData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -374,7 +441,7 @@ export default function Reports() {
                     <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<CustomTooltip />} />
                     {selectedMetrics.slice(0, 3).map((m, i) => (
-                      <Bar key={m} dataKey={m} fill={['#3d6bff', '#10b981', '#f59e0b'][i]} radius={[4, 4, 0, 0]} />
+                      <Bar key={m} dataKey={m} fill={(['#3d6bff', '#10b981', '#f59e0b'] as const)[i]} radius={[4, 4, 0, 0]} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>

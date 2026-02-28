@@ -97,7 +97,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <div className="text-white text-sm font-medium truncate">Jordan Davis</div>
               <div className="text-gray-500 text-xs truncate">WFM Manager</div>
             </div>
-            <Bell size={14} className="text-gray-500 hover:text-white cursor-pointer flex-shrink-0" />
+            <Bell
+              size={14}
+              className="text-gray-500 hover:text-white cursor-pointer flex-shrink-0"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-notifications'))}
+            />
           </div>
         </div>
       </aside>

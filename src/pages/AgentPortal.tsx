@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, ArrowLeftRight, Bell, Award, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { agentBadges, adherenceTimeline, shiftSwaps } from '../data/mockData';
 import type { ShiftSwapRequest } from '../types';
@@ -25,9 +25,22 @@ const initialMySwaps = shiftSwaps.filter(s => s.agentId === 'a1');
 export default function AgentPortal() {
   const [activeTab, setActiveTab] = useState<'schedule' | 'kpi' | 'swaps' | 'badges'>('schedule');
   const [swapOpen, setSwapOpen] = useState(false);
-  const [mySwaps, setMySwaps] = useState<ShiftSwapRequest[]>(initialMySwaps);
+  const [mySwaps, setMySwaps] = useState<ShiftSwapRequest[]>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_my_swaps');
+      return stored ? JSON.parse(stored) : initialMySwaps;
+    } catch {
+      return initialMySwaps;
+    }
+  });
   const [swapForm, setSwapForm] = useState({ myShift: '', swapWith: '', reason: '' });
   const [swapSubmitted, setSwapSubmitted] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pulseops_my_swaps', JSON.stringify(mySwaps));
+    } catch {}
+  }, [mySwaps]);
 
   const streakDays = 12;
   const adherenceToday = 97;

@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon, Zap, Database, Bell, Shield, Users, Link, Check, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Zap, Database, Bell, Shield, Users, Link, Check, AlertTriangle, X } from 'lucide-react';
 
 type SettingsTab = 'Integrations' | 'Notifications' | 'Compliance Rules' | 'Team & Roles' | 'Data & Exports' | 'API & Webhooks';
 
 const integrations = [
-  { name: 'Intercom', description: 'Real-time agent state · Conversation sync', status: 'connected', icon: '💬' },
-  { name: 'Google Calendar', description: 'Schedule sync · OOO import', status: 'connected', icon: '📅' },
-  { name: 'Snowflake', description: 'Data warehouse export · Event streaming', status: 'connected', icon: '❄️' },
-  { name: 'BigQuery', description: 'Analytics export · Scheduled push', status: 'disconnected', icon: '📊' },
-  { name: 'Slack', description: 'Alert notifications · Schedule updates', status: 'disconnected', icon: '💡' },
-  { name: 'Zendesk', description: 'Ticket data · CSAT import', status: 'disconnected', icon: '🎫' },
+  { name: 'Intercom', description: 'Real-time agent state · Conversation sync', defaultStatus: 'connected', icon: '💬' },
+  { name: 'Google Calendar', description: 'Schedule sync · OOO import', defaultStatus: 'connected', icon: '📅' },
+  { name: 'Snowflake', description: 'Data warehouse export · Event streaming', defaultStatus: 'connected', icon: '❄️' },
+  { name: 'BigQuery', description: 'Analytics export · Scheduled push', defaultStatus: 'disconnected', icon: '📊' },
+  { name: 'Slack', description: 'Alert notifications · Schedule updates', defaultStatus: 'disconnected', icon: '💡' },
+  { name: 'Zendesk', description: 'Ticket data · CSAT import', defaultStatus: 'disconnected', icon: '🎫' },
 ];
 
 const complianceRules = [
@@ -45,6 +45,17 @@ const navItems: { icon: React.ComponentType<{ size: number }>; label: SettingsTa
   { icon: Zap, label: 'API & Webhooks' },
 ];
 
+const initialMembers = [
+  { name: 'Jordan Davis', email: 'jordan@company.com', role: 'WFM Manager', status: 'Active' },
+  { name: 'Alex Nkosi', email: 'alex@company.com', role: 'Supervisor', status: 'Active' },
+  { name: 'Mei Tanaka', email: 'mei@company.com', role: 'Analyst', status: 'Active' },
+  { name: 'Sam Patel', email: 'sam@company.com', role: 'Viewer', status: 'Invited' },
+];
+
+const initialApiKeys = [
+  { id: 'k1', key: 'sk_live_••••••••••••••••4f2a', created: 'Feb 1, 2026', lastUsed: '2h ago', active: true },
+];
+
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('Integrations');
   const [editingRule, setEditingRule] = useState<string | null>(null);
@@ -66,10 +77,59 @@ export default function Settings() {
   });
   const [savedBanner, setSavedBanner] = useState(false);
 
+  // Integration state
+  const [intgStatus, setIntgStatus] = useState<Record<string, string>>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_intg_status');
+      return stored ? JSON.parse(stored) : Object.fromEntries(integrations.map(i => [i.name, i.defaultStatus]));
+    } catch {
+      return Object.fromEntries(integrations.map(i => [i.name, i.defaultStatus]));
+    }
+  });
+  const [connectModal, setConnectModal] = useState<string | null>(null);
+  const [configModal, setConfigModal] = useState<string | null>(null);
+  const [connectForm, setConnectForm] = useState({ key: '', secret: '' });
+
+  // Team & roles state
+  const [members, setMembers] = useState<typeof initialMembers>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_members');
+      return stored ? JSON.parse(stored) : initialMembers;
+    } catch {
+      return initialMembers;
+    }
+  });
+  const [editMember, setEditMember] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState('');
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'Viewer' });
+
+  // API keys state
+  const [apiKeys, setApiKeys] = useState<typeof initialApiKeys>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_api_keys');
+      return stored ? JSON.parse(stored) : initialApiKeys;
+    } catch {
+      return initialApiKeys;
+    }
+  });
+
+  // Data & exports state
+  const [retention, setRetention] = useState(() => {
+    try { return localStorage.getItem('pulseops_retention') || '24 months (recommended)'; } catch { return '24 months (recommended)'; }
+  });
+  const [exportFmt, setExportFmt] = useState(() => {
+    try { return localStorage.getItem('pulseops_export_fmt') || 'CSV'; } catch { return 'CSV'; }
+  });
+
   const showSaved = () => {
     try {
       localStorage.setItem('pulseops_notifs', JSON.stringify(notifs));
       localStorage.setItem('pulseops_ruleValues', JSON.stringify(ruleValues));
+      localStorage.setItem('pulseops_retention', retention);
+      localStorage.setItem('pulseops_export_fmt', exportFmt);
+      localStorage.setItem('pulseops_members', JSON.stringify(members));
+      localStorage.setItem('pulseops_intg_status', JSON.stringify(intgStatus));
     } catch {
       // localStorage unavailable (e.g. private browsing quota exceeded)
     }
@@ -79,6 +139,69 @@ export default function Settings() {
 
   const toggleNotif = (label: string) => {
     setNotifs(prev => prev.map(n => n.label === label ? { ...n, enabled: !n.enabled } : n));
+  };
+
+  const handleConnect = (name: string) => {
+    const updated = { ...intgStatus, [name]: 'connected' };
+    setIntgStatus(updated);
+    try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
+    setConnectModal(null);
+    setConnectForm({ key: '', secret: '' });
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 3000);
+  };
+
+  const handleDisconnect = (name: string) => {
+    const updated = { ...intgStatus, [name]: 'disconnected' };
+    setIntgStatus(updated);
+    try { localStorage.setItem('pulseops_intg_status', JSON.stringify(updated)); } catch {}
+    setConfigModal(null);
+  };
+
+  const handleSaveConfig = () => {
+    setConfigModal(null);
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 3000);
+  };
+
+  const handleInvite = () => {
+    if (!inviteForm.email.trim()) return;
+    const newMember = {
+      name: inviteForm.name || inviteForm.email.split('@')[0],
+      email: inviteForm.email,
+      role: inviteForm.role,
+      status: 'Invited',
+    };
+    const updated = [...members, newMember];
+    setMembers(updated);
+    try { localStorage.setItem('pulseops_members', JSON.stringify(updated)); } catch {}
+    setShowInviteModal(false);
+    setInviteForm({ name: '', email: '', role: 'Viewer' });
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 3000);
+  };
+
+  const handleEditRole = (email: string) => {
+    const updated = members.map(m => m.email === email ? { ...m, role: editRole } : m);
+    setMembers(updated);
+    try { localStorage.setItem('pulseops_members', JSON.stringify(updated)); } catch {}
+    setEditMember(null);
+  };
+
+  const generateKey = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let suffix = '';
+    for (let i = 0; i < 4; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+    const newKey = { id: `k-${Date.now()}`, key: `sk_live_••••••••••••••••${suffix}`, created: 'Feb 28, 2026', lastUsed: 'never', active: true };
+    const updated = [...apiKeys, newKey];
+    setApiKeys(updated);
+    try { localStorage.setItem('pulseops_api_keys', JSON.stringify(updated)); } catch {}
+  };
+
+  const revokeKey = (id: string) => {
+    const updated = apiKeys.filter(k => k.id !== id);
+    setApiKeys(updated);
+    try { localStorage.setItem('pulseops_api_keys', JSON.stringify(updated)); } catch {}
   };
 
   return (
@@ -129,13 +252,13 @@ export default function Settings() {
                       <div className="text-white font-medium text-sm">{intg.name}</div>
                       <div className="text-gray-500 text-xs">{intg.description}</div>
                     </div>
-                    {intg.status === 'connected' ? (
+                    {intgStatus[intg.name] === 'connected' ? (
                       <div className="flex items-center gap-2">
                         <span className="badge-green"><Check size={10} />Connected</span>
-                        <button className="btn-secondary text-xs h-7 px-2.5">Configure</button>
+                        <button onClick={() => setConfigModal(intg.name)} className="btn-secondary text-xs h-7 px-2.5">Configure</button>
                       </div>
                     ) : (
-                      <button className="btn-primary text-xs h-8 px-3">Connect</button>
+                      <button onClick={() => setConnectModal(intg.name)} className="btn-primary text-xs h-8 px-3">Connect</button>
                     )}
                   </div>
                 ))}
@@ -209,12 +332,7 @@ export default function Settings() {
               <h3 className="text-white font-semibold mb-1">Team & Roles</h3>
               <p className="text-gray-500 text-xs mb-4">Manage workspace members and their permission levels</p>
               <div className="space-y-2">
-                {[
-                  { name: 'Jordan Davis', email: 'jordan@company.com', role: 'WFM Manager', status: 'Active' },
-                  { name: 'Alex Nkosi', email: 'alex@company.com', role: 'Supervisor', status: 'Active' },
-                  { name: 'Mei Tanaka', email: 'mei@company.com', role: 'Analyst', status: 'Active' },
-                  { name: 'Sam Patel', email: 'sam@company.com', role: 'Viewer', status: 'Invited' },
-                ].map(member => (
+                {members.map(member => (
                   <div key={member.email} className="flex items-center gap-3 p-3 bg-[#22253a] rounded-lg border border-[#2a2d3e]">
                     <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-400 flex-shrink-0">
                       {member.name.split(' ').map(n => n[0]).join('')}
@@ -223,13 +341,31 @@ export default function Settings() {
                       <div className="text-white text-sm font-medium">{member.name}</div>
                       <div className="text-gray-500 text-xs">{member.email}</div>
                     </div>
-                    <span className="badge-blue">{member.role}</span>
-                    <span className={member.status === 'Active' ? 'badge-green' : 'badge-yellow'}>{member.status}</span>
-                    <button className="btn-secondary text-xs h-7 px-2">Edit</button>
+                    {editMember === member.email ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="input text-xs h-7 py-0 pr-6"
+                          value={editRole}
+                          onChange={e => setEditRole(e.target.value)}
+                        >
+                          {['Viewer', 'Analyst', 'Supervisor', 'WFM Manager'].map(r => (
+                            <option key={r}>{r}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => handleEditRole(member.email)} className="text-emerald-400 text-xs hover:text-emerald-300">Save</button>
+                        <button onClick={() => setEditMember(null)} className="text-gray-500 text-xs hover:text-gray-300">Cancel</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="badge-blue">{member.role}</span>
+                        <span className={member.status === 'Active' ? 'badge-green' : 'badge-yellow'}>{member.status}</span>
+                        <button onClick={() => { setEditMember(member.email); setEditRole(member.role); }} className="btn-secondary text-xs h-7 px-2">Edit</button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
-              <button className="btn-primary text-xs h-8 mt-4">Invite Member</button>
+              <button onClick={() => setShowInviteModal(true)} className="btn-primary text-xs h-8 mt-4">Invite Member</button>
             </div>
           )}
 
@@ -241,7 +377,7 @@ export default function Settings() {
               <div className="space-y-4">
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1.5">Data retention period</label>
-                  <select className="input text-sm h-9 w-64">
+                  <select className="input text-sm h-9 w-64" value={retention} onChange={e => setRetention(e.target.value)}>
                     <option>24 months (recommended)</option>
                     <option>12 months</option>
                     <option>36 months</option>
@@ -249,7 +385,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1.5">Default export format</label>
-                  <select className="input text-sm h-9 w-64">
+                  <select className="input text-sm h-9 w-64" value={exportFmt} onChange={e => setExportFmt(e.target.value)}>
                     <option>CSV</option>
                     <option>XLSX</option>
                     <option>JSON</option>
@@ -269,7 +405,7 @@ export default function Settings() {
                     <div className="text-white font-medium text-sm">BigQuery Export</div>
                     <div className="text-gray-500 text-xs">Batch export · Not connected</div>
                   </div>
-                  <button className="btn-primary text-xs h-8 px-3">Connect</button>
+                  <button onClick={() => { setActiveTab('Integrations'); }} className="btn-primary text-xs h-8 px-3">Connect</button>
                 </div>
                 <button onClick={showSaved} className="btn-primary text-xs h-8">Save Settings</button>
               </div>
@@ -301,17 +437,25 @@ export default function Settings() {
               <div className="card p-5">
                 <h3 className="text-white font-semibold mb-1">API Keys</h3>
                 <p className="text-gray-500 text-xs mb-3">Manage authentication tokens for API access</p>
-                <div className="flex items-center gap-3 p-3 bg-[#22253a] rounded-lg border border-[#2a2d3e] mb-3">
-                  <div className="flex-1">
-                    <div className="text-gray-300 text-sm font-mono">sk_live_••••••••••••••••4f2a</div>
-                    <div className="text-gray-600 text-xs mt-0.5">Created Feb 1, 2026 · Last used 2h ago</div>
+                {apiKeys.length === 0 ? (
+                  <p className="text-gray-500 text-sm mb-3">No active keys. Generate one below.</p>
+                ) : (
+                  <div className="space-y-2 mb-3">
+                    {apiKeys.map(k => (
+                      <div key={k.id} className="flex items-center gap-3 p-3 bg-[#22253a] rounded-lg border border-[#2a2d3e]">
+                        <div className="flex-1">
+                          <div className="text-gray-300 text-sm font-mono">{k.key}</div>
+                          <div className="text-gray-600 text-xs mt-0.5">Created {k.created} · Last used {k.lastUsed}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="badge-green">Active</span>
+                          <button onClick={() => revokeKey(k.id)} className="btn-secondary text-xs h-7 px-2">Revoke</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="badge-green">Active</span>
-                    <button className="btn-secondary text-xs h-7 px-2">Revoke</button>
-                  </div>
-                </div>
-                <button className="btn-primary text-xs h-8">Generate New Key</button>
+                )}
+                <button onClick={generateKey} className="btn-primary text-xs h-8">Generate New Key</button>
                 <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
                   <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
                   <p className="text-amber-300 text-xs">Treat API keys like passwords. Never expose them in client-side code or public repositories.</p>
@@ -321,6 +465,162 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {/* Connect modal */}
+      {connectModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }}>
+          <div className="card w-full max-w-md p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-white font-semibold">Connect {connectModal}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Enter your API credentials to authorize PulseOps</p>
+              </div>
+              <button onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }} className="text-gray-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">API Key</label>
+                <input
+                  type="text"
+                  className="input w-full text-sm h-9"
+                  placeholder="Enter API key..."
+                  value={connectForm.key}
+                  onChange={e => setConnectForm(f => ({ ...f, key: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">API Secret</label>
+                <input
+                  type="password"
+                  className="input w-full text-sm h-9"
+                  placeholder="Enter API secret..."
+                  value={connectForm.secret}
+                  onChange={e => setConnectForm(f => ({ ...f, secret: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                onClick={() => handleConnect(connectModal)}
+                disabled={!connectForm.key.trim()}
+                className="btn-primary text-sm h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Authorize & Connect
+              </button>
+              <button onClick={() => { setConnectModal(null); setConnectForm({ key: '', secret: '' }); }} className="btn-secondary text-sm h-9">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure modal */}
+      {configModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setConfigModal(null)}>
+          <div className="card w-full max-w-md p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-white font-semibold">Configure {configModal}</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Adjust sync settings and webhook endpoints</p>
+              </div>
+              <button onClick={() => setConfigModal(null)} className="text-gray-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Webhook URL</label>
+                <input
+                  type="text"
+                  className="input w-full text-sm h-9"
+                  defaultValue={`https://api.pulseops.io/webhooks/${configModal.toLowerCase().replace(/\s+/g, '-')}`}
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Sync Frequency</label>
+                <select className="input w-full text-sm h-9">
+                  <option>Real-time</option>
+                  <option>Every 5 minutes</option>
+                  <option>Every 15 minutes</option>
+                  <option>Hourly</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Connection Status</label>
+                <div className="flex items-center gap-3 py-1">
+                  <span className="badge-green"><Check size={10} />Connected</span>
+                  <button onClick={() => handleDisconnect(configModal)} className="text-red-400 text-xs hover:text-red-300 transition-colors">Disconnect</button>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-5">
+              <button onClick={handleSaveConfig} className="btn-primary text-sm h-9">Save Configuration</button>
+              <button onClick={() => setConfigModal(null)} className="btn-secondary text-sm h-9">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite member modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
+          <div className="card w-full max-w-md p-6 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-white font-semibold">Invite Team Member</h3>
+                <p className="text-gray-500 text-xs mt-0.5">They'll receive an email invite to join the workspace</p>
+              </div>
+              <button onClick={() => setShowInviteModal(false)} className="text-gray-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  className="input w-full text-sm h-9"
+                  placeholder="Jane Smith"
+                  value={inviteForm.name}
+                  onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Email Address <span className="text-red-400">*</span></label>
+                <input
+                  type="email"
+                  className="input w-full text-sm h-9"
+                  placeholder="jane@company.com"
+                  value={inviteForm.email}
+                  onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Role</label>
+                <select className="input w-full text-sm h-9" value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}>
+                  <option>Viewer</option>
+                  <option>Analyst</option>
+                  <option>Supervisor</option>
+                  <option>WFM Manager</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-5">
+              <button
+                onClick={handleInvite}
+                disabled={!inviteForm.email.trim()}
+                className="btn-primary text-sm h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Send Invitation
+              </button>
+              <button onClick={() => { setShowInviteModal(false); setInviteForm({ name: '', email: '', role: 'Viewer' }); }} className="btn-secondary text-sm h-9">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

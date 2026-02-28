@@ -70,10 +70,28 @@ export default function Reports() {
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>(['Channel', 'Day']);
   const [reportType, setReportType] = useState('Bar Chart');
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
+  const [scheduleFreq, setScheduleFreq] = useState('One-time export');
+  const [scheduleFmt, setScheduleFmt] = useState('CSV');
 
   const showSaved = (msg: string) => {
     setSavedBanner(msg);
     setTimeout(() => setSavedBanner(null), 3000);
+  };
+
+  const downloadCSV = (filename: string, rows: Record<string, string | number>[]) => {
+    if (!rows.length) return;
+    const headers = Object.keys(rows[0]).join(',');
+    const lines = rows.map(r => Object.values(r).map(v => `"${v}"`).join(','));
+    const csv = [headers, ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const toggleMetric = (m: string) => {
@@ -100,7 +118,7 @@ export default function Reports() {
           <p className="text-gray-500 text-sm mt-0.5">Drag-and-drop builder · Scheduled exports · BI connectors</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-secondary h-9">
+          <button className="btn-secondary h-9" onClick={() => { downloadCSV('pulseops-all-reports.csv', reportTemplates.map(r => ({ name: r.name, category: r.category, metrics: r.metrics.join('; '), lastRun: r.lastRun, schedule: r.schedule || '' }))); showSaved('Exported all reports to CSV'); }}>
             <Download size={14} />
             Export All
           </button>
@@ -187,7 +205,7 @@ export default function Reports() {
                   <h3 className="text-white font-semibold text-sm">SLA by Channel</h3>
                   <p className="text-gray-500 text-xs">Today's attainment vs targets</p>
                 </div>
-                <button className="btn-secondary text-xs h-7 px-2.5">
+                <button className="btn-secondary text-xs h-7 px-2.5" onClick={() => downloadCSV('sla-by-channel.csv', sampleData)}>
                   <Download size={11} />
                   CSV
                 </button>
@@ -210,7 +228,7 @@ export default function Reports() {
                   <h3 className="text-white font-semibold text-sm">Weekly Performance Trend</h3>
                   <p className="text-gray-500 text-xs">SLA % and Adherence % by day</p>
                 </div>
-                <button className="btn-secondary text-xs h-7 px-2.5">
+                <button className="btn-secondary text-xs h-7 px-2.5" onClick={() => downloadCSV('weekly-performance-trend.csv', trendData.map(d => ({ day: d.day, 'Adherence %': d['Adherence %'].toFixed(1), 'SLA %': d['SLA %'].toFixed(1), Volume: d.Volume.toFixed(0) })))}>
                   <Download size={11} />
                   CSV
                 </button>
@@ -304,13 +322,13 @@ export default function Reports() {
             {/* Schedule export */}
             <div className="card p-4">
               <h4 className="text-white text-sm font-semibold mb-3">Schedule Export</h4>
-              <select className="input w-full text-xs mb-2 h-8">
+              <select className="input w-full text-xs mb-2 h-8" value={scheduleFreq} onChange={e => setScheduleFreq(e.target.value)}>
                 <option>One-time export</option>
                 <option>Daily</option>
                 <option>Weekly (Monday)</option>
                 <option>Monthly</option>
               </select>
-              <select className="input w-full text-xs mb-3 h-8">
+              <select className="input w-full text-xs mb-3 h-8" value={scheduleFmt} onChange={e => setScheduleFmt(e.target.value)}>
                 <option>CSV</option>
                 <option>XLSX</option>
                 <option>PDF</option>
@@ -318,7 +336,7 @@ export default function Reports() {
                 <option>Snowflake push</option>
               </select>
               <div className="flex gap-2">
-                <button onClick={() => showSaved('Report saved successfully')} className="btn-primary text-xs h-8 flex-1">
+                <button onClick={() => showSaved(`Scheduled ${scheduleFreq} · ${scheduleFmt}`)} className="btn-primary text-xs h-8 flex-1">
                   <Save size={11} />
                   Save
                 </button>
@@ -362,11 +380,11 @@ export default function Reports() {
                   <p className="text-gray-500 text-xs">Showing {selectedMetrics.join(', ')} by {selectedDimensions.join(', ')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="btn-secondary text-xs h-7 px-2.5">
+                  <button className="btn-secondary text-xs h-7 px-2.5" onClick={() => showSaved('Preview refreshed')}>
                     <RefreshCw size={11} />
                     Refresh
                   </button>
-                  <button className="btn-secondary text-xs h-7 px-2.5">
+                  <button className="btn-secondary text-xs h-7 px-2.5" onClick={() => { downloadCSV('custom-report.csv', sampleData); showSaved('Exported to CSV'); }}>
                     <Download size={11} />
                     Export
                   </button>

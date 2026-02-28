@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MessageCircle, Users, Clock, RefreshCw, AlertTriangle, ExternalLink, Zap } from 'lucide-react';
 import {
   intercomService,
@@ -41,8 +41,7 @@ export default function IntercomLive() {
   const [data, setData]       = useState<LiveData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
-  const [realtimeActive, setRealtimeActive] = useState(false);
-  const sseRef = useRef<EventSource | null>(null);
+  const [pollActive, setPollActive] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -68,39 +67,42 @@ export default function IntercomLive() {
     }
   }, []);
 
-  // ── SSE subscription ────────────────────────────────────────────────────────
-  // Connect to GET /api/events and trigger an immediate re-fetch whenever an
-  // intercom:event arrives (pushed by the webhook handler).
-  // Falls back to 30-second polling when SSE is unavailable.
+  // ── Webhook event polling (5 s) ──────────────────────────────────────────────
+  // Polls /api/events/poll for new webhook events. When the server reports new
+  // events, triggers an immediate fetchData() so the dashboard reflects them.
+  // Works on Vercel (short-lived requests) and local dev alike.
 
   useEffect(() => {
     const token = authService.getToken();
     if (!token) return;
 
     const apiBase = import.meta.env.VITE_API_URL ?? '';
-    const es = new EventSource(`${apiBase}/api/events?token=${encodeURIComponent(token)}`);
-    sseRef.current = es;
+    let sinceTs = 0;
+    let active = true;
 
-    es.addEventListener('connected', () => setRealtimeActive(true));
-
-    es.addEventListener('intercom:event', () => {
-      // Webhook fired → clear the 30s poll timer and fetch immediately
-      void fetchData();
-    });
-
-    es.onerror = () => {
-      // SSE connection dropped; polling keeps the data fresh
-      setRealtimeActive(false);
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const res = await fetch(`${apiBase}/api/events/poll?since=${sinceTs}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const { events, timestamp } = await res.json() as { events: unknown[]; timestamp: number };
+          setPollActive(true);
+          if (events.length > 0) void fetchData();
+          sinceTs = timestamp;
+        }
+      } catch {
+        setPollActive(false);
+      }
+      if (active) setTimeout(poll, 5_000);
     };
 
-    return () => {
-      es.close();
-      sseRef.current = null;
-      setRealtimeActive(false);
-    };
+    void poll();
+    return () => { active = false; setPollActive(false); };
   }, [fetchData]);
 
-  // ── Polling fallback (30 s) ─────────────────────────────────────────────────
+  // ── Baseline refresh (30 s) ──────────────────────────────────────────────────
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 30_000);
@@ -179,17 +181,17 @@ export default function IntercomLive() {
                 <span className="live-dot" />
                 Live
               </span>
-              {realtimeActive && (
+              {pollActive && (
                 <span className="badge-blue text-[10px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block mr-1" />
-                  Real-time
+                  Polling
                 </span>
               )}
             </h3>
             <p className="text-gray-500 text-xs">
               Connected as {data.adminName} · synced{' '}
               {relativeTime(Math.floor(data.fetchedAt.getTime() / 1000))}
-              {realtimeActive ? ' · webhook-driven' : ' · polling 30s'}
+              {pollActive ? ' · polling 5s' : ' · polling 30s'}
             </p>
           </div>
         </div>

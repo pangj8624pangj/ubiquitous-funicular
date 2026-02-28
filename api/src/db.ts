@@ -3,7 +3,12 @@ import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 import path from 'path';
 
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(__dirname, '..', 'data', 'pulseops.db');
+// On Vercel the filesystem is read-only except /tmp; data is ephemeral across
+// cold starts. For persistent storage, swap this for a Vercel Postgres adapter.
+const DB_PATH = process.env.DATABASE_PATH ??
+  (process.env.NODE_ENV === 'production'
+    ? '/tmp/pulseops.db'
+    : path.join(__dirname, '..', 'data', 'pulseops.db'));
 
 // Ensure the data directory exists before opening the database
 try { mkdirSync(path.dirname(DB_PATH), { recursive: true }); } catch {}

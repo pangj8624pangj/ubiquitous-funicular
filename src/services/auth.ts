@@ -13,6 +13,19 @@ interface AuthResponse {
 
 const TOKEN_KEY = 'pulseops_token';
 
+/** Parse response JSON, with a human-readable fallback when the API is down. */
+async function parseJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (text.trimStart().startsWith('<')) {
+      throw new Error('API server is not reachable — run: npm run api');
+    }
+    throw new Error(`Unexpected server response (HTTP ${res.status})`);
+  }
+}
+
 export const authService = {
   getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -63,7 +76,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json() as AuthResponse & { error?: string };
+    const data = await parseJson<AuthResponse & { error?: string }>(res);
     if (!res.ok) throw new Error(data.error ?? `Registration failed (${res.status})`);
     this.setToken(data.token);
     return data;
@@ -75,7 +88,7 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json() as AuthResponse & { error?: string };
+    const data = await parseJson<AuthResponse & { error?: string }>(res);
     if (!res.ok) throw new Error(data.error ?? `Login failed (${res.status})`);
     this.setToken(data.token);
     return data;

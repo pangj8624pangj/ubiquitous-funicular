@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Calendar, Plus, Check, X, AlertTriangle, Download, Filter, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Calendar, Plus, Check, X, AlertTriangle, Download, Filter, Clock, ChevronLeft, ChevronRight, GripHorizontal } from 'lucide-react';
+import { DndContext, useDraggable } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import { shiftSwaps, scheduleData } from '../data/mockData';
 import type { ShiftSwapRequest } from '../types';
 
@@ -17,11 +19,54 @@ const statusBadge: Record<string, string> = {
   rejected: 'badge-red',
 };
 
+type ScheduleShift = { agent: string; start: number; end: number; team: string; color: string };
+type ScheduleDay = { day: string; shifts: ScheduleShift[] };
+
+interface DraggableShiftProps {
+  id: string;
+  shift: ScheduleShift;
+  topPx: number;
+}
+
+function DraggableShift({ id, shift, topPx }: DraggableShiftProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const startPct = ((shift.start - 7) / 16) * 100;
+  const widthPct = ((shift.end - shift.start) / 16) * 100;
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`absolute h-5 rounded border text-[10px] font-medium px-1.5 flex items-center gap-1 select-none truncate
+        ${shiftColors[shift.team] || 'bg-gray-600/60 border-gray-500/40 text-gray-200'}
+        ${isDragging ? 'opacity-60 shadow-xl z-50 cursor-grabbing' : 'cursor-grab hover:brightness-110'}`}
+      style={{
+        left: `${startPct}%`,
+        width: `${widthPct}%`,
+        top: topPx,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        zIndex: isDragging ? 50 : undefined,
+        touchAction: 'none',
+      }}
+      title={`${shift.agent} · ${shift.start}:00–${shift.end}:00 · ${shift.team}`}
+    >
+      <GripHorizontal size={9} className="opacity-50 flex-shrink-0" />
+      {shift.agent.split(' ')[0]}
+    </div>
+  );
+}
+
 export default function Scheduling() {
   const [view, setView] = useState<'schedule' | 'swaps'>('schedule');
   const [swapList, setSwapList] = useState<ShiftSwapRequest[]>(shiftSwaps);
   const [weekOffset, setWeekOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState('All Status');
+  const [schedule, setSchedule] = useState<ScheduleDay[]>(() =>
+    scheduleData.map(d => ({ ...d, shifts: d.shifts.map(s => ({ ...s })) }))
+  );
+  const [dragToast, setDragToast] = useState<string | null>(null);
+  const gridContentRef = useRef<HTMLDivElement | null>(null);
 
   const handleSwap = (id: string, action: 'approved' | 'rejected') => {
     setSwapList(prev => prev.map(s => s.id === id ? { ...s, status: action } : s));
@@ -37,6 +82,37 @@ export default function Scheduling() {
     );
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, delta } = event;
+    if (!active || !delta.x) return;
+
+    const gridWidth = gridContentRef.current?.offsetWidth ?? 780;
+    const rawHours = (delta.x / gridWidth) * 16;
+    const snapped = Math.round(rawHours * 2) / 2; // snap to 30-minute increments
+    if (snapped === 0) return;
+
+    const [dayStr, shiftStr] = (active.id as string).split('-');
+    const dayIdx = parseInt(dayStr);
+    const shiftIdx = parseInt(shiftStr);
+
+    setSchedule(prev => prev.map((day, di) => {
+      if (di !== dayIdx) return day;
+      return {
+        ...day,
+        shifts: day.shifts.map((sh, si) => {
+          if (si !== shiftIdx) return sh;
+          const duration = sh.end - sh.start;
+          const newStart = Math.max(7, Math.min(23 - duration, sh.start + snapped));
+          const newEnd = newStart + duration;
+          // Show a brief toast with the new time
+          setDragToast(`${sh.agent.split(' ')[0]}: ${newStart}:00–${newEnd}:00`);
+          setTimeout(() => setDragToast(null), 2500);
+          return { ...sh, start: newStart, end: newEnd };
+        }),
+      };
+    }));
+  };
+
   const pendingCount = swapList.filter(s => s.status === 'pending').length;
   const compliancePendingCount = swapList.filter(s => s.status === 'pending' && s.complianceOk).length;
 
@@ -46,6 +122,14 @@ export default function Scheduling() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
+      {/* Drag toast */}
+      {dragToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1a1d27] border border-blue-500/30 text-blue-300 text-xs px-4 py-2 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2">
+          <Clock size={12} />
+          Rescheduled — {dragToast}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -53,7 +137,7 @@ export default function Scheduling() {
             <Calendar size={20} className="text-blue-400" />
             Schedule Manager
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5">Visual schedule · Compliance-locked swaps · Bulk changes</p>
+          <p className="text-gray-500 text-sm mt-0.5">Visual schedule · Drag shifts to reschedule · Compliance-locked swaps</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn-secondary h-9">
@@ -139,48 +223,43 @@ export default function Scheduling() {
                 </div>
 
                 {/* Schedule rows */}
-                {scheduleData.map(({ day, shifts }) => (
-                  <div key={day}>
-                    <div className="border-b border-[#2a2d3e] hover:bg-[#1e2130] transition-colors">
-                      <div className="grid" style={{ gridTemplateColumns: '120px 1fr' }}>
-                        <div className="p-3 border-r border-[#2a2d3e] flex items-center">
-                          <div>
-                            <div className="text-white text-sm font-semibold">{day}</div>
-                            <div className="text-gray-500 text-[10px]">{shifts.length} shifts</div>
+                <DndContext onDragEnd={handleDragEnd}>
+                  {schedule.map(({ day, shifts }, dayIdx) => (
+                    <div key={day}>
+                      <div className="border-b border-[#2a2d3e] hover:bg-[#1e2130] transition-colors">
+                        <div className="grid" style={{ gridTemplateColumns: '120px 1fr' }}>
+                          <div className="p-3 border-r border-[#2a2d3e] flex items-center">
+                            <div>
+                              <div className="text-white text-sm font-semibold">{day}</div>
+                              <div className="text-gray-500 text-[10px]">{shifts.length} shifts</div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="relative py-2 px-1" style={{ height: 56 }}>
-                          {/* Hour grid lines */}
-                          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(16, 1fr)' }}>
-                            {hours.map(h => (
-                              <div key={h} className="border-r border-[#2a2d3e]/40 last:border-r-0 h-full" />
+                          <div
+                            ref={dayIdx === 0 ? gridContentRef : undefined}
+                            className="relative py-2 px-1"
+                            style={{ height: 56 }}
+                          >
+                            {/* Hour grid lines */}
+                            <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(16, 1fr)' }}>
+                              {hours.map(h => (
+                                <div key={h} className="border-r border-[#2a2d3e]/40 last:border-r-0 h-full" />
+                              ))}
+                            </div>
+                            {/* Draggable shift bars — top row (idx 0-2), bottom row (idx 3+) */}
+                            {shifts.map((shift, shiftIdx) => (
+                              <DraggableShift
+                                key={`${day}-${shift.agent}-${shiftIdx}`}
+                                id={`${dayIdx}-${shiftIdx}`}
+                                shift={shift}
+                                topPx={shiftIdx < 3 ? 4 : 26}
+                              />
                             ))}
                           </div>
-                          {/* Shift bars — two rows: top row (idx 0,1,2), bottom row (idx 3,4,5) */}
-                          {shifts.map((shift, idx) => {
-                            const startPct = ((shift.start - 7) / 16) * 100;
-                            const widthPct = ((shift.end - shift.start) / 16) * 100;
-                            const topPx = idx < 3 ? 4 : 26;
-                            return (
-                              <div
-                                key={`${shift.agent}-${idx}`}
-                                className={`absolute h-5 rounded border text-[10px] font-medium px-1.5 flex items-center cursor-pointer hover:brightness-110 transition-all truncate ${shiftColors[shift.team] || 'bg-gray-600/60 border-gray-500/40 text-gray-200'}`}
-                                style={{
-                                  left: `${startPct}%`,
-                                  width: `${widthPct}%`,
-                                  top: topPx,
-                                }}
-                                title={`${shift.agent} · ${shift.start}:00–${shift.end}:00 · ${shift.team}`}
-                              >
-                                {shift.agent.split(' ')[0]}
-                              </div>
-                            );
-                          })}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </DndContext>
               </div>
             </div>
           </div>
@@ -193,7 +272,10 @@ export default function Scheduling() {
                 <span className="text-gray-400 text-xs">{team}</span>
               </div>
             ))}
-            <span className="text-gray-600 text-xs ml-auto">Hover a shift to see details</span>
+            <span className="text-gray-600 text-xs ml-auto flex items-center gap-1">
+              <GripHorizontal size={11} />
+              Drag shifts left/right to reschedule
+            </span>
           </div>
         </div>
       )}

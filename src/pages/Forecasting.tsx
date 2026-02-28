@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine
@@ -59,6 +59,29 @@ export default function Forecasting() {
   const [channel, setChannel] = useState('All Channels');
   const [showWhatIf, setShowWhatIf] = useState(false);
   const [volumeImpact, setVolumeImpact] = useState(30);
+  const [appliedImpact, setAppliedImpact] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const chartData = useMemo(() => {
+    const volMultiplier = activeScenario === 's2' ? 1.3 : activeScenario === 's3' ? 0.85 : 1.0;
+    const staffedMultiplier = activeScenario === 's3' ? 0.6 : 1.0;
+    const whatIf = 1 + appliedImpact / 100;
+    return forecastData.map(pt => ({
+      ...pt,
+      forecast: Math.round(pt.forecast * volMultiplier * whatIf),
+      upper: Math.round(pt.upper * volMultiplier * whatIf),
+      lower: Math.round(pt.lower * volMultiplier * whatIf),
+      staffed: Math.round(pt.staffed * staffedMultiplier),
+    }));
+  }, [activeScenario, appliedImpact]);
+
+  const handleApply = () => {
+    setIsRegenerating(true);
+    setTimeout(() => {
+      setAppliedImpact(volumeImpact);
+      setIsRegenerating(false);
+    }, 800);
+  };
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -176,9 +199,9 @@ export default function Forecasting() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-primary h-8 text-xs">
-              <RefreshCw size={12} />
-              Apply &amp; Regenerate
+            <button onClick={handleApply} disabled={isRegenerating} className="btn-primary h-8 text-xs disabled:opacity-70">
+              <RefreshCw size={12} className={isRegenerating ? 'animate-spin' : ''} />
+              {isRegenerating ? 'Regenerating…' : 'Apply & Regenerate'}
             </button>
             <button className="btn-secondary h-8 text-xs">
               <Save size={12} />
@@ -216,7 +239,7 @@ export default function Forecasting() {
 
           <div className="mt-4">
             <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={forecastData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="fg1" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3d6bff" stopOpacity={0.25} />

@@ -50,10 +50,25 @@ export default function CommandCenter() {
   const [overrideStatus, setOverrideStatus] = useState<AgentStatus>('available');
   const [overrideComment, setOverrideComment] = useState('');
   const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
+  const [liveMetrics, setLiveMetrics] = useState(metrics);
+  const [agentList, setAgentList] = useState(agents);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setLastRefresh(new Date());
+      setLiveMetrics(prev => prev.map(m => {
+        const base = parseFloat(String(m.value));
+        if (isNaN(base)) return m;
+        const volatility = m.id === 'm4' ? 9 : m.id === 'm2' ? 1.5 : 0.25;
+        const delta = (Math.random() - 0.45) * volatility;
+        const raw = Math.max(0, base + delta);
+        const value = m.unit === '%'
+          ? String(Math.min(100, raw).toFixed(1))
+          : m.unit === 'min'
+          ? String(raw.toFixed(1))
+          : String(Math.round(raw));
+        return { ...m, value };
+      }));
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -61,8 +76,9 @@ export default function CommandCenter() {
   const atRiskTeams = teams.filter(t => t.risk === 'high' || t.risk === 'critical');
 
   const handleOverride = () => {
-    const agent = agents.find(a => a.id === overrideAgent);
+    const agent = agentList.find(a => a.id === overrideAgent);
     if (!agent) return;
+    setAgentList(prev => prev.map(a => a.id === overrideAgent ? { ...a, status: overrideStatus } : a));
     setOverrideSuccess(`Status override applied for ${agent.name} → ${overrideStatus}`);
     setOverrideAgent(null);
     setOverrideComment('');
@@ -185,7 +201,7 @@ export default function CommandCenter() {
 
       {/* Metric cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {metrics.map(metric => (
+        {liveMetrics.map(metric => (
           <MetricCardComponent key={metric.id} metric={metric} />
         ))}
       </div>
@@ -355,7 +371,7 @@ export default function CommandCenter() {
             <p className="text-gray-500 text-xs mt-0.5">Real-time adherence · API-synced · Click Override to correct status</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-gray-500 text-xs">{agents.length} agents shown</span>
+            <span className="text-gray-500 text-xs">{agentList.length} agents shown</span>
             <button className="btn-secondary text-xs h-7 px-2.5">
               <Filter size={12} />
               Filter
@@ -372,7 +388,7 @@ export default function CommandCenter() {
               </tr>
             </thead>
             <tbody>
-              {agents.map(agent => {
+              {agentList.map(agent => {
                 const isNonAdherent = agent.status !== agent.scheduledStatus;
                 return (
                   <tr key={agent.id} className={`table-row ${isNonAdherent ? 'bg-amber-500/5' : ''}`}>

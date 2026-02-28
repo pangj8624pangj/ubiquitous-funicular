@@ -7,29 +7,34 @@ import type { Agent, AgentStatus } from '../types';
 export default function Agents() {
   const [search, setSearch] = useState('');
   const [teamFilter, setTeamFilter] = useState('All Teams');
+  const [agentList, setAgentList] = useState<Agent[]>(agents);
   const [selected, setSelected] = useState<Agent | null>(null);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideStatus, setOverrideStatus] = useState<AgentStatus>('available');
   const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
 
   const handleOverrideApply = () => {
+    if (!selected) return;
+    const newStatus = overrideStatus;
+    setAgentList(prev => prev.map(a => a.id === selected.id ? { ...a, status: newStatus } : a));
+    setSelected(prev => prev ? { ...prev, status: newStatus } : null);
     setOverrideOpen(false);
-    setOverrideSuccess(`Status set to "${overrideStatus}" for ${selected?.name ?? 'agent'}`);
+    setOverrideSuccess(`Status set to "${newStatus}" for ${selected.name}`);
     setTimeout(() => setOverrideSuccess(null), 3000);
   };
 
-  const teams = ['All Teams', ...Array.from(new Set(agents.map(a => a.team)))];
-  const filtered = agents.filter(a =>
+  const teams = ['All Teams', ...Array.from(new Set(agentList.map(a => a.team)))];
+  const filtered = agentList.filter(a =>
     (teamFilter === 'All Teams' || a.team === teamFilter) &&
     (a.name.toLowerCase().includes(search.toLowerCase()) ||
      a.team.toLowerCase().includes(search.toLowerCase()))
   );
 
   const stats = {
-    online: agents.filter(a => a.status !== 'offline').length,
-    adherent: agents.filter(a => a.adherenceScore >= 90).length,
-    atRisk: agents.filter(a => a.adherenceScore < 75).length,
-    avgAdherence: Math.round(agents.reduce((s, a) => s + a.adherenceScore, 0) / agents.length),
+    online: agentList.filter(a => a.status !== 'offline').length,
+    adherent: agentList.filter(a => a.adherenceScore >= 90).length,
+    atRisk: agentList.filter(a => a.adherenceScore < 75).length,
+    avgAdherence: Math.round(agentList.reduce((s, a) => s + a.adherenceScore, 0) / agentList.length),
   };
 
   return (

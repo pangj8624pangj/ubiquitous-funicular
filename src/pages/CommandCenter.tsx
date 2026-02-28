@@ -6,6 +6,8 @@ import {
 import { Download, Filter, AlertTriangle, Users, X, Check } from 'lucide-react';
 import MetricCardComponent from '../components/UI/MetricCard';
 import StatusBadge from '../components/UI/StatusBadge';
+import IntercomLive from '../components/IntercomLive';
+import { intercomService } from '../services/intercom';
 import { metrics, forecastData, slaMetrics, teams, agents, channelDistribution } from '../data/mockData';
 import type { RiskLevel, AgentStatus } from '../types';
 
@@ -52,6 +54,12 @@ export default function CommandCenter() {
   const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
   const [liveMetrics, setLiveMetrics] = useState(metrics);
   const [agentList, setAgentList] = useState(agents);
+  const [intercomConnected, setIntercomConnected] = useState(false);
+
+  // Check once on mount whether the Intercom proxy has a live token
+  useEffect(() => {
+    intercomService.getStatus().then(setIntercomConnected);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -362,6 +370,18 @@ export default function CommandCenter() {
           </div>
         </div>
       </div>
+
+      {/* Intercom live panel — only renders when the proxy server is connected */}
+      {intercomConnected && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-[#2a2d3e]" />
+            <span className="text-gray-600 text-xs font-medium uppercase tracking-widest px-2">Intercom</span>
+            <div className="h-px flex-1 bg-[#2a2d3e]" />
+          </div>
+          <IntercomLive />
+        </div>
+      )}
 
       {/* Live agent roster */}
       <div className="card overflow-hidden">

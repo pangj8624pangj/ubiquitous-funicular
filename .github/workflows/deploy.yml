@@ -32,6 +32,10 @@ jobs:
 
       - run: npm run build
 
+      # GitHub Pages serves 404.html for unknown routes — copy index.html
+      # so React Router can handle all client-side paths on hard refresh.
+      - run: cp dist/index.html dist/404.html
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

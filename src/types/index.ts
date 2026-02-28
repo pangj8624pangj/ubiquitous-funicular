@@ -34,7 +34,7 @@ export interface MetricCard {
 
 export interface ForecastPoint {
   time: string;
-  actual: number;
+  actual: number | null;
   forecast: number;
   upper: number;
   lower: number;

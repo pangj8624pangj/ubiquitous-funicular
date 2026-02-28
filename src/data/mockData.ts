@@ -44,7 +44,7 @@ export const forecastData: ForecastPoint[] = [
   { time: '18:00', actual: 78, forecast: 82, upper: 95, lower: 70, staffed: 85 },
   { time: '18:30', actual: 65, forecast: 68, upper: 80, lower: 58, staffed: 72 },
   { time: '19:00', actual: 52, forecast: 55, upper: 65, lower: 46, staffed: 58 },
-  { time: '19:30', actual: 0, forecast: 45, upper: 55, lower: 36, staffed: 48 },
+  { time: '19:30', actual: null, forecast: 45, upper: 55, lower: 36, staffed: 48 },
 ];
 
 export const weeklyForecast = [

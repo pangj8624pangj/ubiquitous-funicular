@@ -48,13 +48,31 @@ const navItems: { icon: React.ComponentType<{ size: number }>; label: SettingsTa
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('Integrations');
   const [editingRule, setEditingRule] = useState<string | null>(null);
-  const [ruleValues, setRuleValues] = useState<Record<string, string>>(
-    Object.fromEntries(complianceRules.map(r => [r.label, r.value]))
-  );
-  const [notifs, setNotifs] = useState(notifSettings);
+  const [ruleValues, setRuleValues] = useState<Record<string, string>>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_ruleValues');
+      return stored ? JSON.parse(stored) : Object.fromEntries(complianceRules.map(r => [r.label, r.value]));
+    } catch {
+      return Object.fromEntries(complianceRules.map(r => [r.label, r.value]));
+    }
+  });
+  const [notifs, setNotifs] = useState<typeof notifSettings>(() => {
+    try {
+      const stored = localStorage.getItem('pulseops_notifs');
+      return stored ? JSON.parse(stored) : notifSettings;
+    } catch {
+      return notifSettings;
+    }
+  });
   const [savedBanner, setSavedBanner] = useState(false);
 
   const showSaved = () => {
+    try {
+      localStorage.setItem('pulseops_notifs', JSON.stringify(notifs));
+      localStorage.setItem('pulseops_ruleValues', JSON.stringify(ruleValues));
+    } catch {
+      // localStorage unavailable (e.g. private browsing quota exceeded)
+    }
     setSavedBanner(true);
     setTimeout(() => setSavedBanner(false), 3000);
   };

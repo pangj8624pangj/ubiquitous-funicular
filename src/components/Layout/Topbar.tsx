@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Bell, Search, RefreshCw, ChevronDown } from 'lucide-react';
+import { Bell, Search, RefreshCw, ChevronDown, Menu } from 'lucide-react';
 import { notifications as initialNotifications } from '../../data/mockData';
 import type { Notification } from '../../types';
 
 interface TopbarProps {
   title: string;
   subtitle?: string;
+  onMenuClick?: () => void;
 }
 
-export default function Topbar({ title, subtitle }: TopbarProps) {
+export default function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>(initialNotifications);
 
@@ -37,10 +38,19 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
   };
 
   return (
-    <header className="h-16 border-b border-[#2a2d3e] bg-[#13151f]/80 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-20">
-      <div>
-        <h1 className="text-white font-semibold text-lg leading-tight">{title}</h1>
-        {subtitle && <p className="text-gray-500 text-xs">{subtitle}</p>}
+    <header className="h-16 border-b border-[#2a2d3e] bg-[#13151f]/80 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuClick}
+          className="md:hidden p-2 rounded-lg hover:bg-[#22253a] transition-colors text-gray-400 hover:text-white"
+          aria-label="Toggle menu"
+        >
+          <Menu size={18} />
+        </button>
+        <div>
+          <h1 className="text-white font-semibold text-lg leading-tight">{title}</h1>
+          {subtitle && <p className="text-gray-500 text-xs hidden sm:block">{subtitle}</p>}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

@@ -34,7 +34,7 @@ function AppShell() {
 
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen bg-[#0f1117]">
+      <div className="flex min-h-screen bg-background">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1 flex flex-col md:ml-60">
           <Routes>

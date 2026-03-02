@@ -29,22 +29,22 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         />
       )}
 
-      <aside className={`w-60 min-h-screen bg-[#13151f] border-r border-[#2a2d3e] flex flex-col fixed left-0 top-0 bottom-0 z-30 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`w-60 min-h-screen bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 bottom-0 z-30 transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-[#2a2d3e]">
+        <div className="px-5 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <Zap size={16} className="text-white" />
             </div>
             <div>
-              <div className="text-white font-bold text-base tracking-tight">PulseOps</div>
-              <div className="text-gray-500 text-[10px] font-medium uppercase tracking-widest">Workforce AI</div>
+              <div className="text-sidebar-foreground font-bold text-base tracking-tight">PulseOps</div>
+              <div className="text-muted-foreground text-[10px] font-medium uppercase tracking-widest">Workforce AI</div>
             </div>
           </div>
         </div>
 
         {/* Live status */}
-        <div className="px-4 py-3 border-b border-[#2a2d3e]">
+        <div className="px-4 py-3 border-b border-sidebar-border">
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="live-dot" />
@@ -56,7 +56,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          <div className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">Platform</div>
+          <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">Platform</div>
           {navItems.map(({ path, icon: Icon, label }) => (
             <NavLink
               key={path}
@@ -69,11 +69,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             >
               <Icon size={16} className="flex-shrink-0" />
               <span>{label}</span>
-              <ChevronRight size={12} className="ml-auto text-gray-600" />
+              <ChevronRight size={12} className="ml-auto text-muted-foreground" />
             </NavLink>
           ))}
 
-          <div className="text-gray-600 text-[10px] font-semibold uppercase tracking-widest px-3 mt-5 mb-2">Account</div>
+          <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-widest px-3 mt-5 mb-2">Account</div>
           <NavLink
             to="/settings"
             onClick={onClose}
@@ -88,18 +88,18 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-4 border-t border-[#2a2d3e]">
+        <div className="px-4 py-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600/20 border border-blue-500/30 rounded-full flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">
               JD
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-white text-sm font-medium truncate">Jordan Davis</div>
-              <div className="text-gray-500 text-xs truncate">WFM Manager</div>
+              <div className="text-sidebar-foreground text-sm font-medium truncate">Jordan Davis</div>
+              <div className="text-muted-foreground text-xs truncate">WFM Manager</div>
             </div>
             <Bell
               size={14}
-              className="text-gray-500 hover:text-white cursor-pointer flex-shrink-0"
+              className="text-muted-foreground hover:text-sidebar-foreground cursor-pointer flex-shrink-0"
               onClick={() => window.dispatchEvent(new CustomEvent('open-notifications'))}
             />
           </div>

@@ -2,16 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens ────────────────────────────────────────────────────────── */
+:root {
+  /* Fonts */
+  --font-geist-sans: 'Geist', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-geist-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* Shape */
+  --radius: 0.625rem;
+
+  /* Semantic colors – light mode (OKLCH) */
+  --diagram-surface: oklch(97% 0 0);
+  --background:          oklch(100%   0     0);
+  --foreground:          oklch(14.5%  0     0);
+  --card:                oklch(100%   0     0);
+  --card-foreground:     oklch(14.5%  0     0);
+  --popover:             oklch(100%   0     0);
+  --popover-foreground:  oklch(14.5%  0     0);
+  --primary:             oklch(20.5%  0     0);
+  --primary-foreground:  oklch(98.5%  0     0);
+  --secondary:           oklch(97%    0     0);
+  --secondary-foreground: oklch(20.5% 0     0);
+  --muted:               oklch(97%    0     0);
+  --muted-foreground:    oklch(55.6%  0     0);
+  --accent:              oklch(97%    0     0);
+  --accent-foreground:   oklch(20.5%  0     0);
+  --destructive:         oklch(57.7%  0.245 27.325);
+  --destructive-foreground: oklch(98.5% 0   0);
+  --border:              oklch(92.2%  0     0);
+  --input:               oklch(92.2%  0     0);
+  --ring:                oklch(70.8%  0     0);
+
+  /* Chart palette */
+  --chart-1: oklch(64.6% 0.222  41.116);
+  --chart-2: oklch(60%   0.118 184.704);
+  --chart-3: oklch(39.8% 0.07  227.392);
+  --chart-4: oklch(82.8% 0.189  84.429);
+  --chart-5: oklch(76.9% 0.188  70.08);
+
+  /* Sidebar */
+  --sidebar:                    oklch(98.5% 0     0);
+  --sidebar-foreground:         oklch(14.5% 0     0);
+  --sidebar-primary:            oklch(20.5% 0     0);
+  --sidebar-primary-foreground: oklch(98.5% 0     0);
+  --sidebar-accent:             oklch(97%   0     0);
+  --sidebar-accent-foreground:  oklch(20.5% 0     0);
+  --sidebar-border:             oklch(92.2% 0     0);
+  --sidebar-ring:               oklch(70.8% 0     0);
+
+  font-size: 12.6px;
+}
+
+.dark {
+  --diagram-surface: oklch(32% 0 0);
+  --background:          oklch(14.5%  0     0);
+  --foreground:          oklch(98.5%  0     0);
+  --card:                oklch(20.5%  0     0);
+  --card-foreground:     oklch(98.5%  0     0);
+  --popover:             oklch(20.5%  0     0);
+  --popover-foreground:  oklch(98.5%  0     0);
+  --primary:             oklch(92.2%  0     0);
+  --primary-foreground:  oklch(20.5%  0     0);
+  --secondary:           oklch(26.9%  0     0);
+  --secondary-foreground: oklch(98.5% 0     0);
+  --muted:               oklch(26.9%  0     0);
+  --muted-foreground:    oklch(70.8%  0     0);
+  --accent:              oklch(26.9%  0     0);
+  --accent-foreground:   oklch(98.5%  0     0);
+  --destructive:         oklch(70.4%  0.191 22.216);
+  --destructive-foreground: oklch(98.5% 0   0);
+  --border:              oklch(100%   0     0 / 0.1);
+  --input:               oklch(100%   0     0 / 0.15);
+  --ring:                oklch(55.6%  0     0);
+
+  --chart-1: oklch(48.8% 0.243 264.376);
+  --chart-2: oklch(69.6% 0.17  162.48);
+  --chart-3: oklch(76.9% 0.188  70.08);
+  --chart-4: oklch(62.7% 0.265 303.9);
+  --chart-5: oklch(64.5% 0.246  16.439);
+
+  --sidebar:                    oklch(20.5%  0     0);
+  --sidebar-foreground:         oklch(98.5%  0     0);
+  --sidebar-primary:            oklch(48.8%  0.243 264.376);
+  --sidebar-primary-foreground: oklch(98.5%  0     0);
+  --sidebar-accent:             oklch(26.9%  0     0);
+  --sidebar-accent-foreground:  oklch(98.5%  0     0);
+  --sidebar-border:             oklch(100%   0     0 / 0.1);
+  --sidebar-ring:               oklch(55.6%  0     0);
+}
+
+/* ── Base layer ───────────────────────────────────────────────────────────── */
 @layer base {
-  body {
-    @apply bg-[#0f1117] text-gray-100 antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    margin: 0;
-    min-height: 100vh;
+  *, ::before, ::after {
+    box-sizing: border-box;
+    border-color: var(--border);
   }
 
-  * {
-    box-sizing: border-box;
+  html, :host {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    font-family: var(--font-geist-sans);
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::-webkit-scrollbar {
@@ -24,81 +130,181 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2a2d3e;
+    background: var(--border);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3d50;
+    background: var(--muted-foreground);
   }
 }
 
+/* ── Sidebar collapsed state ──────────────────────────────────────────────── */
+[data-state="collapsed"] .sidebar-title {
+  display: none;
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ping {
+  75%, to {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+@keyframes pulse {
+  50% { opacity: 0.5; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(
+        var(--tw-enter-translate-x, 0),
+        var(--tw-enter-translate-y, 0),
+        0
+      )
+      scale3d(
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1)
+      )
+      rotate(var(--tw-enter-rotate, 0));
+  }
+}
+
+@keyframes exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(
+        var(--tw-exit-translate-x, 0),
+        var(--tw-exit-translate-y, 0),
+        0
+      )
+      scale3d(
+        var(--tw-exit-scale, 1),
+        var(--tw-exit-scale, 1),
+        var(--tw-exit-scale, 1)
+      )
+      rotate(var(--tw-exit-rotate, 0));
+  }
+}
+
+@keyframes waveform {
+  0%, to { transform: scaleY(1); }
+  50%     { transform: scaleY(1.8); }
+}
+
+@keyframes agent-progress-dot {
+  0%, to {
+    opacity: 0.08;
+    transform: scale(0.85);
+  }
+  45% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+}
+
+.agent-progress-dot {
+  opacity: 0.1;
+  width: 3px;
+  height: 3px;
+  animation: 1.35s ease-in-out infinite agent-progress-dot;
+  animation-delay: var(--dot-delay, 0s);
+  will-change: opacity, transform;
+  background: currentColor;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-progress-dot {
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
+/* ── Component helpers ────────────────────────────────────────────────────── */
 @layer components {
   .card {
-    @apply bg-[#1a1d27] border border-[#2a2d3e] rounded-xl;
+    @apply bg-card border border-border rounded-xl text-card-foreground;
   }
 
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-150 text-sm inline-flex items-center gap-2 cursor-pointer;
+    @apply bg-primary hover:bg-primary/80 text-primary-foreground font-medium px-4 py-2 rounded-lg transition-colors duration-150 text-sm inline-flex items-center gap-2 cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-[#22253a] hover:bg-[#2a2d3e] text-gray-200 font-medium px-4 py-2 rounded-lg transition-colors duration-150 text-sm border border-[#2a2d3e] inline-flex items-center gap-2 cursor-pointer;
+    @apply bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium px-4 py-2 rounded-lg transition-colors duration-150 text-sm border border-border inline-flex items-center gap-2 cursor-pointer;
   }
 
   .badge-green {
-    @apply bg-emerald-500/15 text-emerald-400 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
+    @apply bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
   }
 
   .badge-yellow {
-    @apply bg-amber-500/15 text-amber-400 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
+    @apply bg-yellow-50 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
   }
 
   .badge-red {
-    @apply bg-red-500/15 text-red-400 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
+    @apply bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
   }
 
   .badge-blue {
-    @apply bg-blue-500/15 text-blue-400 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
+    @apply bg-blue-50 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
   }
 
   .badge-purple {
-    @apply bg-purple-500/15 text-purple-400 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
+    @apply bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1;
   }
 
   .metric-card {
-    @apply card p-5 hover:bg-[#22253a] transition-colors duration-150 cursor-default;
+    @apply card p-5 hover:bg-accent transition-colors duration-150 cursor-default;
   }
 
   .stat-value {
-    @apply text-2xl font-bold text-white tracking-tight;
+    @apply text-2xl font-bold text-foreground tracking-tight;
   }
 
   .stat-label {
-    @apply text-xs text-gray-500 uppercase tracking-wider font-medium;
+    @apply text-xs text-muted-foreground uppercase tracking-widest font-medium;
   }
 
   .table-row {
-    @apply border-b border-[#2a2d3e] hover:bg-[#22253a] transition-colors duration-100;
+    @apply border-b border-border hover:bg-muted/50 transition-colors duration-100;
   }
 
   .input {
-    @apply bg-[#22253a] border border-[#2a2d3e] rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all duration-150;
+    @apply bg-background border border-input rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all duration-150;
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-[#22253a] transition-all duration-150 cursor-pointer w-full;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150 cursor-pointer w-full;
   }
 
   .sidebar-item-active {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-blue-600/20 border border-blue-500/20 w-full;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground bg-primary/10 border border-primary/20 w-full;
   }
 
   .live-dot {
     display: inline-block;
     width: 8px;
     height: 8px;
-    background-color: #34d399;
+    background-color: oklch(72.3% 0.219 149.579); /* green-500 */
     border-radius: 9999px;
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
@@ -107,8 +313,7 @@
     animation: fadeIn 0.3s ease-in-out;
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
   }
 }

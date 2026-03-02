@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - claude/build-pulseops-platform-7G9QL
+      - main
 
 permissions:
   contents: read

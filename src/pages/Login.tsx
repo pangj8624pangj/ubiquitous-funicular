@@ -28,27 +28,29 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 mb-4">
-            <span className="text-blue-400 font-bold text-xl">P</span>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 mb-4">
+            <span className="text-primary font-bold text-xl">P</span>
           </div>
-          <h1 className="text-white text-2xl font-bold">PulseOps</h1>
-          <p className="text-gray-500 text-sm mt-1">Workforce management platform</p>
+          <h1 className="text-foreground text-2xl font-bold">PulseOps</h1>
+          <p className="text-muted-foreground text-sm mt-1">Workforce management platform</p>
         </div>
 
         <div className="card p-6">
           {/* Tab switcher */}
-          <div className="flex gap-1 p-1 bg-[#1a1d2e] rounded-lg mb-5">
+          <div className="flex gap-1 p-1 bg-muted rounded-lg mb-5">
             {(['login', 'register'] as Mode[]).map(m => (
               <button
                 key={m}
                 onClick={() => switchMode(m)}
                 className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  mode === m ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                  mode === m
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {m === 'login' ? 'Sign In' : 'Create Account'}
@@ -58,7 +60,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="text-gray-400 text-xs font-medium block mb-1">Email</label>
+              <label className="text-muted-foreground text-xs font-medium block mb-1">Email</label>
               <input
                 type="email"
                 className="input w-full text-sm h-9"
@@ -71,7 +73,7 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="text-gray-400 text-xs font-medium block mb-1">Password</label>
+              <label className="text-muted-foreground text-xs font-medium block mb-1">Password</label>
               <input
                 type="password"
                 className="input w-full text-sm h-9"
@@ -84,7 +86,7 @@ export default function Login() {
             </div>
 
             {error && (
-              <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
+              <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs">
                 {error}
               </div>
             )}
@@ -101,7 +103,7 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-gray-600 text-xs text-center mt-4">
+        <p className="text-muted-foreground text-xs text-center mt-4">
           Any email + password (8+ chars) to create an account
         </p>
       </div>

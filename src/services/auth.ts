@@ -12,19 +12,75 @@ interface AuthResponse {
 }
 
 const TOKEN_KEY = 'pulseops_token';
+const MOCK_USERS_KEY = 'pulseops_mock_users';
 
-/** Parse response JSON, with a human-readable fallback when the API is down. */
+// ── Mock auth (used when the API server is not available, e.g. GitHub Pages) ──
+
+type MockUsers = Record<string, { id: string; passwordHash: string }>;
+
+function mockUsers(): MockUsers {
+  try { return JSON.parse(localStorage.getItem(MOCK_USERS_KEY) ?? '{}'); } catch { return {}; }
+}
+
+function saveMockUsers(u: MockUsers) {
+  localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(u));
+}
+
+/** Minimal hash — good enough for a client-side demo, not for production. */
+async function hashPassword(password: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function makeMockToken(id: string, email: string): string {
+  const header  = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ userId: id, email, iat: Date.now() / 1000 | 0, exp: (Date.now() / 1000 | 0) + 604800 }));
+  return `${header}.${payload}.mock`;
+}
+
+async function mockRegister(email: string, password: string): Promise<AuthResponse> {
+  const users = mockUsers();
+  if (users[email]) throw new Error('An account with this email already exists');
+  const id = crypto.randomUUID();
+  users[email] = { id, passwordHash: await hashPassword(password) };
+  saveMockUsers(users);
+  const token = makeMockToken(id, email);
+  return { token, user: { id, email } };
+}
+
+async function mockLogin(email: string, password: string): Promise<AuthResponse> {
+  const users = mockUsers();
+  const record = users[email];
+  if (!record) throw new Error('No account found with this email');
+  if (record.passwordHash !== await hashPassword(password)) throw new Error('Incorrect password');
+  const token = makeMockToken(record.id, email);
+  return { token, user: { id: record.id, email } };
+}
+
+// ── Real API helpers ───────────────────────────────────────────────────────────
+
+/** Parse response JSON, with a fallback when the API is unreachable. */
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   try {
     return JSON.parse(text) as T;
   } catch {
-    if (text.trimStart().startsWith('<')) {
-      throw new Error('API server is not reachable — run: npm run api');
-    }
-    throw new Error(`Unexpected server response (HTTP ${res.status})`);
+    throw new Error('Unexpected server response');
   }
 }
+
+/** Returns true if the API is available (i.e. not a static-only host). */
+async function apiReachable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API}/api/health`, { method: 'GET' });
+    const text = await res.text();
+    return !text.trimStart().startsWith('<');
+  } catch {
+    return false;
+  }
+}
+
+// ── Public service ─────────────────────────────────────────────────────────────
 
 export const authService = {
   getToken(): string | null {
@@ -71,6 +127,11 @@ export const authService = {
   },
 
   async register(email: string, password: string): Promise<AuthResponse> {
+    if (!await apiReachable()) {
+      const data = await mockRegister(email, password);
+      this.setToken(data.token);
+      return data;
+    }
     const res = await fetch(`${API}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,6 +144,11 @@ export const authService = {
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
+    if (!await apiReachable()) {
+      const data = await mockLogin(email, password);
+      this.setToken(data.token);
+      return data;
+    }
     const res = await fetch(`${API}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
